@@ -1,16 +1,18 @@
 // src/pages/react-board/ReactBoard.jsx
 import React, { useState, useEffect, useContext } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import {
   fetchReactResources,
   createReactResource,
   likeReactResource
 } from "../../store/slices/reactBoardSlice";
-import { addMessage } from "../../store/slices/messagesSlice";
+import { createConversation, sendMessage } from "../../store/slices/messagesSlice";
 import { AuthContext } from "../../context/AuthContext";
 
 function ReactBoard() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { userEmail } = useContext(AuthContext);
 
   const board = useSelector((state) => state.reactBoard);
@@ -19,8 +21,11 @@ function ReactBoard() {
   const error = board?.error || null;
 
   const [showModal, setShowModal] = useState(false);
+
+  /* ---------- CONTACT STATE ---------- */
   const [showContactModal, setShowContactModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState("");
+  const [contactUserEmail, setContactUserEmail] = useState("");
+  const [contactUserName, setContactUserName] = useState("");
 
   const [newIdea, setNewIdea] = useState({
     title: "",
@@ -32,6 +37,8 @@ function ReactBoard() {
   });
 
   const [messageContent, setMessageContent] = useState("");
+
+  const currentUserEmail = (userEmail || "").toLowerCase();
 
   // ✅ Load from MongoDB on mount
   useEffect(() => {
@@ -46,7 +53,7 @@ function ReactBoard() {
         title: newIdea.title,
         description: newIdea.description,
         link: newIdea.link,
-        ownerEmail: userEmail || "unknown@local",
+        ownerEmail: currentUserEmail || "unknown@local",
         ownerName: newIdea.user || ""
       })
     );
@@ -67,24 +74,47 @@ function ReactBoard() {
     dispatch(likeReactResource({ id: idea.id, currentLikes: idea.likes }));
   };
 
-  const handleContact = (user) => {
-    setSelectedUser(user);
+  const handleContact = (email, name) => {
+    setContactUserEmail((email || "").toLowerCase());
+    setContactUserName(name || email || "User");
     setShowContactModal(true);
   };
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (messageContent.trim() !== "") {
-      dispatch(
-        addMessage({
-          id: Date.now(),
-          to: selectedUser,
-          content: messageContent,
-          dateSent: new Date().toISOString()
+    if (!messageContent.trim()) return;
+    if (!currentUserEmail) return;
+
+    const otherEmail = (contactUserEmail || "").toLowerCase();
+
+    // Must have a valid email to message
+    if (!otherEmail || otherEmail === "unknown@local") return;
+
+    // Prevent messaging yourself
+    if (otherEmail === currentUserEmail) return;
+
+    try {
+      // 1) Create (or fetch existing) conversation in MongoDB
+      const convo = await dispatch(
+        createConversation({ participants: [currentUserEmail, otherEmail] })
+      ).unwrap();
+
+      // 2) Send message to MongoDB
+      await dispatch(
+        sendMessage({
+          conversationId: convo.id,
+          sender: currentUserEmail,
+          text: messageContent.trim()
         })
-      );
+      ).unwrap();
+
       setMessageContent("");
       setShowContactModal(false);
+
+      // 3) Go to messages page and open convo
+      navigate("/messages", { state: { conversationId: convo.id } });
+    } catch (err) {
+      console.error("Failed to send message:", err);
     }
   };
 
@@ -167,7 +197,14 @@ function ReactBoard() {
       {showContactModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Contact {selectedUser}</h2>
+            <h2 className="text-xl font-bold mb-4">Contact {contactUserName}</h2>
+
+            {!contactUserEmail ? (
+              <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">
+                This post doesn’t have an owner email, so messaging can’t start.
+              </div>
+            ) : null}
+
             <form onSubmit={handleSendMessage}>
               <textarea
                 className="w-full p-3 mb-4 border rounded"
@@ -231,7 +268,12 @@ function ReactBoard() {
                 <td className="py-2 px-4 border-b">{idea.ownerName || ""}</td>
                 <td className="py-2 px-4 border-b text-center">
                   <button
-                    onClick={() => handleContact(idea.ownerName || "User")}
+                    onClick={() =>
+                      handleContact(
+                        idea.ownerEmail,
+                        idea.ownerName || idea.user || idea.ownerEmail || "User"
+                      )
+                    }
                     className="bg-green-600 text-white px-2 py-1 rounded"
                   >
                     Contact

@@ -11,6 +11,7 @@ const ContactPage = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState(""); // New: error state
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -21,13 +22,36 @@ const ContactPage = () => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitSuccess(false);
+    setSubmitError("");
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
 
-    setIsSubmitting(false);
-    setSubmitSuccess(true);
-    setFormData({ name: "", email: "", inquiryType: "", subject: "", message: "" });
-    setTimeout(() => setSubmitSuccess(false), 3000);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Submission failed');
+      }
+
+      setSubmitSuccess(true);
+      setFormData({
+        name: "",
+        email: "",
+        inquiryType: "",
+        subject: "",
+        message: "",
+      });
+    } catch (error) {
+      console.error('Submission error:', error);
+      setSubmitError(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -46,6 +70,12 @@ const ContactPage = () => {
           </div>
         )}
 
+        {submitError && (
+          <div className="mb-8 p-6 bg-red-100 border border-red-400 text-red-800 rounded-2xl text-center">
+            Error: {submitError}. Please try again.
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-xl space-y-6">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Name *</label>
@@ -55,7 +85,7 @@ const ContactPage = () => {
               value={formData.name}
               onChange={handleChange}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Your name"
             />
           </div>
@@ -68,7 +98,7 @@ const ContactPage = () => {
               value={formData.email}
               onChange={handleChange}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="your.email@example.com"
             />
           </div>
@@ -80,7 +110,7 @@ const ContactPage = () => {
               value={formData.inquiryType}
               onChange={handleChange}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Select an option</option>
               <option value="general">General Inquiry</option>
@@ -99,7 +129,7 @@ const ContactPage = () => {
               name="subject"
               value={formData.subject}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Brief subject"
             />
           </div>
@@ -112,7 +142,7 @@ const ContactPage = () => {
               value={formData.message}
               onChange={handleChange}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Tell us more..."
             />
           </div>
@@ -120,7 +150,7 @@ const ContactPage = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-blue-600 text-white py-4 px-6 rounded-xl font-semibold hover:bg-blue-700 disabled:bg-gray-400 transition"
+            className="w-full bg-blue-600 text-white py-4 px-6 rounded-xl font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
           >
             {isSubmitting ? "Sending..." : "Send Message"}
           </button>

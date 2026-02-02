@@ -2,9 +2,81 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import logo from "../../images/skillsphere-logo.png"; // adjust the path if needed
 
-
 function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const boards = [
+    {
+      name: "AI Tools",
+      path: "/ai-tools",
+      titleClass: "text-purple-700",
+      hoverBorder: "hover:border-purple-200",
+      iconBg: "bg-purple-500",
+    },
+    {
+      name: "Art",
+      path: "/art",
+      titleClass: "text-pink-700",
+      hoverBorder: "hover:border-pink-200",
+      iconBg: "bg-pink-500",
+    },
+    {
+      name: "Coding",
+      path: "/coding",
+      titleClass: "text-green-700",
+      hoverBorder: "hover:border-green-200",
+      iconBg: "bg-green-500",
+    },
+    {
+      name: "Cooking",
+      path: "/cooking",
+      titleClass: "text-orange-700",
+      hoverBorder: "hover:border-orange-200",
+      iconBg: "bg-orange-500",
+    },
+    {
+      name: "Design",
+      path: "/design",
+      titleClass: "text-blue-700",
+      hoverBorder: "hover:border-blue-200",
+      iconBg: "bg-blue-500",
+    },
+    {
+      name: "JavaScript",
+      path: "/javascript",
+      titleClass: "text-yellow-700",
+      hoverBorder: "hover:border-yellow-200",
+      iconBg: "bg-yellow-500",
+    },
+    {
+      name: "Music",
+      path: "/music",
+      titleClass: "text-red-700",
+      hoverBorder: "hover:border-red-200",
+      iconBg: "bg-red-500",
+    },
+    {
+      name: "Photography",
+      path: "/photography",
+      titleClass: "text-teal-700",
+      hoverBorder: "hover:border-teal-200",
+      iconBg: "bg-teal-500",
+    },
+    {
+      name: "React",
+      path: "/react",
+      titleClass: "text-indigo-700",
+      hoverBorder: "hover:border-indigo-200",
+      iconBg: "bg-indigo-500",
+    },
+    {
+      name: "Writing",
+      path: "/writing",
+      titleClass: "text-gray-700",
+      hoverBorder: "hover:border-gray-200",
+      iconBg: "bg-gray-500",
+    },
+  ];
 
   return (
     <div
@@ -17,11 +89,7 @@ function Home() {
     >
       {/* Navigation Bar */}
       <nav className="bg-white shadow-lg rounded-xl mb-12 p-4 flex justify-between items-center">
-        <img
-  src={logo}
-  alt="Community Hub Logo"
-  className="h-12 md:h-16 w-auto"
-/>
+        <img src={logo} alt="Community Hub Logo" className="h-12 md:h-16 w-auto" />
 
         <div className="relative">
           <button
@@ -30,6 +98,7 @@ function Home() {
           >
             Share Resource
           </button>
+
           {menuOpen && (
             <div className="absolute right-0 mt-2 bg-white shadow-2xl rounded-xl p-4 w-60 border border-slate-200">
               <div className="grid grid-cols-1 gap-1">
@@ -114,38 +183,33 @@ function Home() {
         <h1 className="text-6xl font-extrabold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-600 tracking-tight">
           Welcome to the SkillSphere
         </h1>
-        <p className="text-xl text-red mb-8 max-w-2xl mx-auto leading-relaxed">
+        <p className="text-xl text-gray-700 mb-8 max-w-2xl mx-auto leading-relaxed">
           Share and discover resources across different boards. Connect with fellow creators, learners, and innovators.
         </p>
       </div>
 
       {/* Features Grid */}
       <div className="max-w-6xl mx-auto mt-20">
-        <h2 className="text-4xl font-bold text-center text-red mb-12">Explore Our Community Boards</h2>
+        <h2 className="text-4xl font-bold text-center text-gray-900 mb-12">Explore Our Community Boards</h2>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[
-            { name: "AI Tools", color: "purple", path: "/ai-tools" },
-            { name: "Art", color: "pink", path: "/art" },
-            { name: "Coding", color: "green", path: "/coding" },
-            { name: "Cooking", color: "orange", path: "/cooking" },
-            { name: "Design", color: "blue", path: "/design" },
-            { name: "JavaScript", color: "yellow", path: "/javascript" },
-            { name: "Music", color: "red", path: "/music" },
-            { name: "Photography", color: "teal", path: "/photography" },
-            { name: "React", color: "indigo", path: "/react" },
-            { name: "Writing", color: "gray", path: "/writing" },
-          ].map((board) => (
+          {boards.map((board) => (
             <Link
               key={board.name}
               to={board.path}
-              className={`bg-white/90 backdrop-blur-sm rounded-xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 border border-white/20 hover:border-${board.color}-200`}
+              className={`bg-white/90 backdrop-blur-sm rounded-xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 border border-white/20 ${board.hoverBorder}`}
             >
               <div className="flex items-center">
-                <div className={`w-12 h-12 rounded-lg bg-${board.color}-100 flex items-center justify-center mr-4`}>
-                  <div className={`w-8 h-8 rounded-lg bg-${board.color}-500 opacity-80`}></div>
+                {/* Icon square */}
+                <div
+                  className={`w-12 h-12 rounded-lg ${board.iconBg} mr-4 shadow-sm ring-1 ring-black/10 flex items-center justify-center`}
+                >
+                  {/* Inner mark (high contrast) */}
+                  <div className="w-6 h-6 rounded-md bg-white/90" />
                 </div>
+
                 <div>
-                  <h3 className={`text-xl font-bold text-${board.color}-700`}>{board.name}</h3>
+                  <h3 className={`text-xl font-bold ${board.titleClass}`}>{board.name}</h3>
                   <p className="text-gray-600 text-sm mt-1">Explore resources and discussions</p>
                 </div>
               </div>
@@ -182,7 +246,7 @@ function Home() {
       <div className="fixed bottom-6 right-6 z-50">
         <Link
           to="/contact"
-          className="group flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-2xl hover:shadow-3xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-110"
+          className="group flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-2xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-110"
           title="Contact Us"
         >
           <svg
@@ -199,7 +263,7 @@ function Home() {
               d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
             />
           </svg>
-          
+
           {/* Tooltip on hover */}
           <span className="absolute right-16 w-auto px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
             Contact Us

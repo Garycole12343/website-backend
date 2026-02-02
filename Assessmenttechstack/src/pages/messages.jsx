@@ -1,11 +1,13 @@
 // src/pages/messages.jsx
 import React, { useEffect, useState, useContext } from "react";
 import { useSelector, useDispatch } from "react-redux";
+import { useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { fetchConversations, sendMessage } from "../store/slices/messagesSlice";
 
 function Messages() {
   const dispatch = useDispatch();
+  const location = useLocation();
   const { userEmail, isAuthenticated } = useContext(AuthContext);
 
   const { conversations, status, error } = useSelector((state) => state.messages);
@@ -21,6 +23,22 @@ function Messages() {
       dispatch(fetchConversations(currentUser));
     }
   }, [dispatch, isAuthenticated, currentUser]);
+
+  // Auto-open a conversation when navigated from a board
+  useEffect(() => {
+    const convId = location.state?.conversationId;
+    if (!convId) return;
+
+    // If conversation exists in state already, select it
+    const exists = conversations.some((c) => c.id === convId);
+    if (exists) {
+      setSelectedConversationId(convId);
+    } else {
+      // If conversations haven’t loaded yet, still set it
+      // so the UI updates as soon as it appears.
+      setSelectedConversationId(convId);
+    }
+  }, [location.state, conversations]);
 
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
 
@@ -58,7 +76,9 @@ function Messages() {
         <div className="mb-4 p-3 bg-white border rounded">Loading conversations…</div>
       )}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded">{error}</div>
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded">
+          {error}
+        </div>
       )}
 
       <div className="flex">

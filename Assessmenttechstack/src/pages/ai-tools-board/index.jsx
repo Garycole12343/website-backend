@@ -1,16 +1,18 @@
 // src/pages/ai-tools-board/AiToolsBoard.jsx
 import React, { useState, useEffect, useContext } from "react";
 import { useSelector, useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import {
   fetchAiToolsResources,
   createAiToolsResource,
   likeAiToolsResource,
 } from "../../store/slices/aiToolsSlice";
-import { addConversation } from "../../store/slices/messagesSlice";
+import { createConversation, sendMessage } from "../../store/slices/messagesSlice";
 import { AuthContext } from "../../context/AuthContext";
 
 function AiToolsBoard() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { userEmail } = useContext(AuthContext);
 
   const aiToolsBoard = useSelector((state) => state.aiToolsBoard);
@@ -31,8 +33,11 @@ function AiToolsBoard() {
 
   /* ---------- CONTACT STATE ---------- */
   const [showContactModal, setShowContactModal] = useState(false);
-  const [contactUser, setContactUser] = useState("");
+  const [contactUserEmail, setContactUserEmail] = useState("");
+  const [contactUserName, setContactUserName] = useState("");
   const [contactMessage, setContactMessage] = useState("");
+
+  const currentUserEmail = (userEmail || "").toLowerCase();
 
   // ✅ Load from MongoDB when board opens
   useEffect(() => {
@@ -48,7 +53,7 @@ function AiToolsBoard() {
         title: newIdea.title,
         description: newIdea.description,
         link: newIdea.link,
-        ownerEmail: userEmail || "unknown@local",
+        ownerEmail: currentUserEmail || "unknown@local",
         ownerName: newIdea.user || "",
       })
     );
@@ -69,30 +74,47 @@ function AiToolsBoard() {
   };
 
   /* ---------- CONTACT HANDLERS ---------- */
-  const handleContact = (user) => {
-    setContactUser(user);
+  const handleContact = (email, name) => {
+    setContactUserEmail((email || "").toLowerCase());
+    setContactUserName(name || email || "User");
     setShowContactModal(true);
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!contactMessage.trim()) return;
+    if (!currentUserEmail) return;
 
-    dispatch(
-      addConversation({
-        id: Date.now(),
-        participants: ["You", contactUser],
-        messages: [
-          {
-            sender: "You",
-            text: contactMessage,
-            timestamp: new Date().toLocaleTimeString(),
-          },
-        ],
-      })
-    );
+    const otherEmail = (contactUserEmail || "").toLowerCase();
 
-    setContactMessage("");
-    setShowContactModal(false);
+    // Must have a valid email to message
+    if (!otherEmail || otherEmail === "unknown@local") return;
+
+    // Prevent messaging yourself
+    if (otherEmail === currentUserEmail) return;
+
+    try {
+      // 1) Create (or fetch existing) conversation in MongoDB
+      const convo = await dispatch(
+        createConversation({ participants: [currentUserEmail, otherEmail] })
+      ).unwrap();
+
+      // 2) Send message to MongoDB
+      await dispatch(
+        sendMessage({
+          conversationId: convo.id,
+          sender: currentUserEmail,
+          text: contactMessage.trim(),
+        })
+      ).unwrap();
+
+      setContactMessage("");
+      setShowContactModal(false);
+
+      // 3) Go to messages page and open convo
+      navigate("/messages", { state: { conversationId: convo.id } });
+    } catch (err) {
+      console.error("Failed to send message:", err);
+    }
   };
 
   return (
@@ -151,7 +173,7 @@ function AiToolsBoard() {
                 className="w-full rounded border p-3 mb-4"
               />
 
-              {/* Keeping your datePosted field in the UI (not stored in Mongo currently) */}
+              {/* UI-only date */}
               <input
                 type="date"
                 value={newIdea.datePosted}
@@ -233,7 +255,12 @@ function AiToolsBoard() {
                 <td className="p-2">{idea.ownerName || idea.user || ""}</td>
                 <td className="p-2">
                   <button
-                    onClick={() => handleContact(idea.ownerName || idea.user || "User")}
+                    onClick={() =>
+                      handleContact(
+                        idea.ownerEmail,
+                        idea.ownerName || idea.user || idea.ownerEmail || "User"
+                      )
+                    }
                     className="bg-green-600 text-white px-3 py-1 rounded"
                   >
                     Contact
@@ -249,7 +276,13 @@ function AiToolsBoard() {
       {showContactModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Contact {contactUser}</h2>
+            <h2 className="text-xl font-bold mb-4">Contact {contactUserName}</h2>
+
+            {!contactUserEmail ? (
+              <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">
+                This post doesn’t have an owner email, so messaging can’t start.
+              </div>
+            ) : null}
 
             <textarea
               value={contactMessage}
