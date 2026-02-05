@@ -1,22 +1,51 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-from pymongo import MongoClient
-from werkzeug.security import check_password_hash, generate_password_hash
-from datetime import datetime, UTC
-from bson import ObjectId
-import uuid
+# app.py
+from __future__ import annotations
 
+import os
+import uuid
+from datetime import datetime, UTC
+from typing import Any, Dict, List, Optional
+
+from bson import ObjectId
+from flask import Flask, jsonify, request, session
+from flask_cors import CORS
+from flask_session import Session
+from flask_socketio import SocketIO, emit, join_room
+from pymongo import MongoClient, ASCENDING, DESCENDING
+from werkzeug.security import check_password_hash, generate_password_hash
+
+
+# =============================================================================
+# App + Config
+# =============================================================================
 app = Flask(__name__)
 
-# -----------------------------
-# CORS
-# -----------------------------
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# SECRET_KEY must be set before Session(app)
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "skillswap-dev-secret-2026-change-prod!")
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SESSION_PERMANENT"] = True
+app.config["SESSION_USE_SIGNER"] = True
+app.config["SESSION_KEY_PREFIX"] = "skillswap_session:"
+Session(app)
 
-# -----------------------------
+# CORS (API + SocketIO)
+VITE_ORIGIN = os.getenv("VITE_ORIGIN", "http://localhost:5173")
+CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+
+socketio = SocketIO(
+    app,
+    cors_allowed_origins=[VITE_ORIGIN, "*"],
+    async_mode="threading",
+    logger=True,
+    engineio_logger=True,
+)
+
+
+# =============================================================================
 # MongoDB
-# -----------------------------
-client = MongoClient("mongodb://localhost:27017/")
+# =============================================================================
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+client = MongoClient(MONGO_URI)
 db = client["skillswap"]
 
 users = db["users"]
@@ -24,30 +53,57 @@ resources_col = db["resources"]
 conversations = db["conversations"]
 contacts = db["contacts"]
 
-print("✅ MongoDB skillswap.users ready!")
-print("✅ MongoDB skillswap.resources ready!")
-print("✅ MongoDB skillswap.conversations ready!")
-print("✅ MongoDB skillswap.contacts ready!")
+# Helpful indexes (safe to call repeatedly)
+try:
+    users.create_index([("email", ASCENDING)], unique=True)
+    conversations.create_index([("id", ASCENDING)], unique=True)
+    conversations.create_index([("participants", ASCENDING)])
+    conversations.create_index([("updated_at", DESCENDING)])
+except Exception as e:
+    print("⚠️ Index creation warning:", repr(e))
 
-# -----------------------------
+print("✅ All MongoDB collections ready!")
+
+
+# =============================================================================
 # Helpers
-# -----------------------------
-def _iso(v):
+# =============================================================================
+def _iso(v: Any) -> Any:
     return v.isoformat() if isinstance(v, datetime) else v
 
-def _serialize_conversation(conv_doc):
-    """Make conversation JSON-safe (ObjectId + datetime)."""
-    if not conv_doc:
-        return None
 
+def _safe_object_id(value: str) -> Optional[ObjectId]:
+    if value and ObjectId.is_valid(value):
+        return ObjectId(value)
+    return None
+
+
+def _serialize_user(doc: Dict[str, Any]) -> Dict[str, Any]:
+    d = dict(doc)
+    oid = d.pop("_id", None)
+    d["id"] = str(oid) if oid else d.get("id")
+    d.pop("password", None)  # never return hashes
+    d["created_at"] = _iso(d.get("created_at"))
+    d["updated_at"] = _iso(d.get("updated_at"))
+    return d
+
+
+def _serialize_resource(doc: Dict[str, Any]) -> Dict[str, Any]:
+    d = dict(doc)
+    oid = d.pop("_id", None)
+    d["id"] = str(oid) if oid else d.get("id")
+    d["created_at"] = _iso(d.get("created_at"))
+    d["updated_at"] = _iso(d.get("updated_at"))
+    return d
+
+
+def _serialize_conversation(conv_doc: Dict[str, Any]) -> Dict[str, Any]:
+    """Make conversation JSON-safe."""
     c = dict(conv_doc)
-
-    # Keep the Mongo id for debugging, but don’t rely on it in frontend
     mongo_id = c.pop("_id", None)
     c["mongoId"] = str(mongo_id) if mongo_id else None
 
-    # Ensure we always have "id" (your UUID string)
-    # (If missing, fallback to mongoId)
+    # stable id used by frontend
     c["id"] = c.get("id") or (str(mongo_id) if mongo_id else None)
 
     c["created_at"] = _iso(c.get("created_at"))
@@ -60,298 +116,392 @@ def _serialize_conversation(conv_doc):
         mm["timestamp"] = _iso(mm.get("timestamp"))
         safe_msgs.append(mm)
     c["messages"] = safe_msgs
-
     return c
 
-# -----------------------------
-# Home
-# -----------------------------
+
+def _normalize_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+
+def _require_json() -> Dict[str, Any]:
+    return request.get_json(silent=True) or {}
+
+
+# =============================================================================
+# Socket.IO Events
+# =============================================================================
+@socketio.on("connect")
+def on_connect(auth=None):
+    # auth is frequently None unless client sends it
+    auth = auth or {}
+    email = _normalize_email(auth.get("email") or "")
+
+    if not email:
+        print("⚠️ SocketIO connect without email auth")
+        emit("connect_error", {"message": "Email auth required"})
+        return False  # reject connection cleanly
+
+    print(f"✅ SocketIO connected: {email}")
+    join_room(email)
+    emit("connect_success", {"message": f"Connected as {email}"}, room=email)
+
+
+@socketio.on("disconnect")
+def on_disconnect():
+    print("🔌 SocketIO client disconnected")
+
+
+@socketio.on_error()
+def socketio_error_handler(e):
+    print(f"❌ SocketIO error: {e}")
+
+
+@socketio.on("send_message")
+def socket_send_message(payload):
+    """
+    Optional real-time message send (in addition to REST endpoint).
+    Payload:
+      {
+        "conversationId": "...",
+        "from": "a@a.com",
+        "to": "b@b.com",
+        "text": "hello"
+      }
+    """
+    try:
+        data = payload or {}
+        conv_id = (data.get("conversationId") or "").strip()
+        from_email = _normalize_email(data.get("from"))
+        to_email = _normalize_email(data.get("to"))
+        text = (data.get("text") or "").strip()
+
+        if not conv_id or not from_email or not to_email or not text:
+            emit("message_error", {"message": "conversationId, from, to, text required"})
+            return
+
+        msg = {
+            "id": uuid.uuid4().hex,
+            "from": from_email,
+            "to": to_email,
+            "text": text,
+            "timestamp": datetime.now(UTC),
+        }
+
+        res = conversations.update_one(
+            {"id": conv_id},
+            {"$push": {"messages": msg}, "$set": {"updated_at": datetime.now(UTC)}},
+        )
+        if res.matched_count == 0:
+            emit("message_error", {"message": "Conversation not found"})
+            return
+
+        # broadcast to both participants' rooms
+        emit("new_message", {"conversationId": conv_id, "message": {**msg, "timestamp": _iso(msg["timestamp"])}}, room=from_email)
+        emit("new_message", {"conversationId": conv_id, "message": {**msg, "timestamp": _iso(msg["timestamp"])}}, room=to_email)
+
+    except Exception as e:
+        print("❌ send_message socket error:", repr(e))
+        emit("message_error", {"message": "Internal error"})
+
+
+# =============================================================================
+# Basic Routes
+# =============================================================================
 @app.get("/")
 def home():
-    return jsonify({"message": "Flask + MongoDB Backend Live!"})
+    return jsonify({"message": "✅ Flask + SocketIO + MongoDB Backend Live!"})
 
-# =====================================================
-# RESOURCES
-# =====================================================
+
+# =============================================================================
+# Resources (Boards)
+# =============================================================================
 @app.route("/api/resources", methods=["GET", "POST"])
 def resources_route():
     if request.method == "GET":
-        category = request.args.get("category", "").strip()
+        category = (request.args.get("category") or "").strip()
         query = {"category": category} if category else {}
 
         docs = []
         for doc in resources_col.find(query):
-            d = dict(doc)
-            oid_str = str(d["_id"])
-            d["_id"] = oid_str
-            d["id"] = oid_str
-            docs.append(d)
+            docs.append(_serialize_resource(doc))
 
-        def sort_key(x):
-            v = x.get("created_at")
-            return v if isinstance(v, datetime) else (v or "")
-
-        docs.sort(key=sort_key, reverse=True)
+        # newest first
+        docs.sort(key=lambda x: x.get("created_at") or "", reverse=True)
         return jsonify({"resources": docs}), 200
 
-    data = request.get_json(silent=True) or {}
-    if "title" not in data or not str(data.get("title", "")).strip():
-        return jsonify({"message": "title required"}), 400
+    # POST
+    data = _require_json()
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "title required"}), 400
 
-    data.setdefault("likes", 0)
-
-    doc = {**data, "created_at": datetime.now(UTC)}
+    doc = {
+        **data,
+        "title": title,
+        "likes": int(data.get("likes") or 0),
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
     result = resources_col.insert_one(doc)
-
     inserted = resources_col.find_one({"_id": result.inserted_id})
-    inserted_out = dict(inserted)
-    oid_str = str(inserted_out["_id"])
-    inserted_out["_id"] = oid_str
-    inserted_out["id"] = oid_str
-
-    return jsonify(inserted_out), 201
+    return jsonify(_serialize_resource(inserted)), 201
 
 
-@app.route("/api/resources/<resource_id>", methods=["PUT"])
+@app.put("/api/resources/<resource_id>")
 def update_resource(resource_id):
-    data = request.get_json(silent=True) or {}
-
+    data = _require_json()
     if "likes" not in data:
-        return jsonify({"message": "likes required"}), 400
+        return jsonify({"error": "likes required"}), 400
 
-    if not resource_id or resource_id in ("undefined", "null"):
-        return jsonify({"message": "Invalid resource ID (missing)"}), 400
-
-    oid = None
-    try:
-        oid = ObjectId(resource_id)
-    except Exception:
-        oid = None
-
+    oid = _safe_object_id(resource_id)
     filter_query = {"_id": oid} if oid else {"id": resource_id}
 
-    result = resources_col.update_one(filter_query, {"$set": {"likes": data["likes"]}})
+    result = resources_col.update_one(
+        filter_query,
+        {"$set": {"likes": int(data["likes"]), "updated_at": datetime.now(UTC)}},
+    )
     if result.matched_count == 0:
-        return jsonify({"message": "Resource not found"}), 404
+        return jsonify({"error": "Resource not found"}), 404
 
     updated = resources_col.find_one(filter_query)
-    out = dict(updated)
-    oid_str = str(out["_id"])
-    out["_id"] = oid_str
-    out["id"] = oid_str
-    return jsonify(out), 200
+    return jsonify(_serialize_resource(updated)), 200
 
-# =====================================================
-# AUTH
-# =====================================================
+
+# =============================================================================
+# Auth
+# =============================================================================
 @app.post("/api/register")
 def register():
-    data = request.get_json(silent=True) or {}
-
+    data = _require_json()
     required = ["firstName", "lastName", "email", "password", "interests", "skillLevel"]
-    missing = [k for k in required if k not in data]
+    missing = [k for k in required if not data.get(k)]
     if missing:
-        return jsonify({"message": "Missing fields", "missing": missing}), 400
+        return jsonify({"error": "Missing fields", "missing": missing}), 400
 
-    email = str(data["email"]).strip().lower()
+    email = _normalize_email(data["email"])
     if users.find_one({"email": email}):
-        return jsonify({"message": "Email already registered"}), 409
+        return jsonify({"error": "Email already registered"}), 409
 
-    if len(str(data["password"])) < 8:
-        return jsonify({"message": "Password must be at least 8 characters"}), 400
-
-    user = {
-        "firstName": str(data["firstName"]).strip(),
-        "lastName": str(data["lastName"]).strip(),
+    user_doc = {
+        "firstName": (data.get("firstName") or "").strip(),
+        "lastName": (data.get("lastName") or "").strip(),
         "email": email,
         "password": generate_password_hash(data["password"]),
-        "interests": data["interests"],
-        "skillLevel": data["skillLevel"],
-        "profile": {},
-        "created_at": datetime.now(UTC)
+        "interests": data.get("interests"),
+        "skillLevel": data.get("skillLevel"),
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
     }
+    users.insert_one(user_doc)
 
-    users.insert_one(user)
-    return jsonify({"message": "User created"}), 201
+    # optional login session
+    session["userEmail"] = email
+
+    saved = users.find_one({"email": email})
+    return jsonify({"user": _serialize_user(saved)}), 201
 
 
 @app.post("/api/login")
 def login():
-    data = request.get_json(silent=True) or {}
+    data = _require_json()
+    email = _normalize_email(data.get("email") or "")
+    password = data.get("password") or ""
 
-    email = str(data.get("email", "")).strip().lower()
-    password = data.get("password", "")
+    if not email or not password:
+        return jsonify({"error": "email and password required"}), 400
 
     user = users.find_one({"email": email})
     if not user or not check_password_hash(user.get("password", ""), password):
-        return jsonify({"message": "Invalid credentials"}), 401
+        return jsonify({"error": "Invalid credentials"}), 401
 
-    user_out = dict(user)
-    user_out["id"] = str(user_out["_id"])
-    user_out.pop("_id", None)
-    user_out.pop("password", None)
+    session["userEmail"] = email
+    return jsonify({"user": _serialize_user(user)}), 200
 
-    return jsonify({"user": user_out}), 200
 
-# =====================================================
-# PROFILE
-# =====================================================
-@app.route("/api/profile", methods=["GET", "POST"])
-def profile():
-    if request.method == "GET":
-        email = request.args.get("email", "").strip().lower()
-        if not email:
-            return jsonify({"message": "Email required"}), 400
+@app.post("/api/logout")
+def logout():
+    session.pop("userEmail", None)
+    return jsonify({"message": "Logged out"}), 200
 
-        user = users.find_one({"email": email})
-        if not user:
-            return jsonify({"profile": None}), 200
 
-        profile_obj = user.get("profile", {}) or {}
-        profile_data = {
-            "name": f"{user.get('firstName', '')} {user.get('lastName', '')}".strip() or "",
-            "pronouns": profile_obj.get("pronouns", ""),
-            "age": profile_obj.get("age", ""),
-            "skills": profile_obj.get("skills", ""),
-            "qualifications": profile_obj.get("qualifications", ""),
-            "image": profile_obj.get("image", "")
-        }
-        return jsonify({"profile": profile_data}), 200
+@app.get("/api/me")
+def me():
+    email = _normalize_email(session.get("userEmail") or "")
+    if not email:
+        return jsonify({"user": None}), 200
+    user = users.find_one({"email": email})
+    return jsonify({"user": _serialize_user(user) if user else None}), 200
 
-    data = request.get_json(silent=True) or {}
-    if "email" not in data or "profile" not in data:
-        return jsonify({"message": "email and profile required"}), 400
 
-    email = str(data["email"]).strip().lower()
-    profile_update = data["profile"]
-
-    if not isinstance(profile_update, dict):
-        return jsonify({"message": "profile must be an object"}), 400
-
-    profile_update["updatedAt"] = datetime.now(UTC)
-
-    result = users.update_one(
-        {"email": email},
-        {"$set": {"profile": profile_update}},
-        upsert=False
-    )
-    if result.matched_count == 0:
-        return jsonify({"message": "User not found"}), 404
-
-    return jsonify({"message": "Profile saved"}), 200
-
-# =====================================================
-# MESSAGES / CONVERSATIONS (FIXED)
-# =====================================================
+# =============================================================================
+# Messaging / Conversations (THIS FIXES YOUR 500)
+# =============================================================================
 @app.get("/api/messages")
 def get_conversations():
-    email = request.args.get("email", "").strip().lower()
-    if not email:
-        return jsonify({"message": "Email required"}), 400
+    """
+    Frontend calls:
+      GET /api/messages?email=user@example.com
 
-    # Correct array match
-    docs = list(conversations.find({"participants": email}).sort("updated_at", -1))
-    out = [_serialize_conversation(c) for c in docs]
-    return jsonify({"conversations": out}), 200
+    Returns:
+      { conversations: [...] }
+    """
+    email = _normalize_email(request.args.get("email") or "")
+    if not email:
+        return jsonify({"message": "email is required"}), 400
+
+    try:
+        convs = list(
+            conversations.find({"participants": email}).sort("updated_at", DESCENDING)
+        )
+        return jsonify({"conversations": [_serialize_conversation(c) for c in convs]}), 200
+    except Exception as e:
+        print("❌ /api/messages error:", repr(e))
+        return jsonify({"message": "Internal Server Error"}), 500
 
 
 @app.post("/api/messages/conversation")
 def create_conversation():
-    data = request.get_json(silent=True) or {}
-    if "participants" not in data:
-        return jsonify({"message": "participants array required"}), 400
+    """
+    Body:
+      { "participants": ["a@a.com","b@b.com"] }
 
-    participants = [str(p).strip().lower() for p in data["participants"]]
-    if len(participants) != 2:
-        return jsonify({"message": "Exactly 2 participants required"}), 400
+    Returns:
+      { conversation: {...} }
+    """
+    data = _require_json()
+    participants = data.get("participants") or []
+    if not isinstance(participants, list) or len(participants) != 2:
+        return jsonify({"message": "participants must be an array of 2 emails"}), 400
 
-    # Normalize ordering so duplicates don’t happen
-    participants_sorted = sorted(participants)
+    a = _normalize_email(participants[0])
+    b = _normalize_email(participants[1])
+    if not a or not b or a == b:
+        return jsonify({"message": "participants must be two different emails"}), 400
 
+    participants_sorted = sorted([a, b])
+
+    # Check existing
     existing = conversations.find_one({"participants": participants_sorted})
     if existing:
         return jsonify({"conversation": _serialize_conversation(existing)}), 200
 
-    conv_id = str(uuid.uuid4())
-    conversation = {
-        "id": conv_id,
+    conv_doc = {
+        "id": uuid.uuid4().hex,
         "participants": participants_sorted,
         "messages": [],
         "created_at": datetime.now(UTC),
-        "updated_at": datetime.now(UTC)
+        "updated_at": datetime.now(UTC),
     }
-
-    conversations.insert_one(conversation)
-    return jsonify({"conversation": _serialize_conversation(conversation)}), 201
+    conversations.insert_one(conv_doc)
+    saved = conversations.find_one({"id": conv_doc["id"]})
+    return jsonify({"conversation": _serialize_conversation(saved)}), 201
 
 
 @app.post("/api/messages/send")
-def send_message():
-    data = request.get_json(silent=True) or {}
-    if not all(k in data for k in ["conversationId", "sender", "text"]):
-        return jsonify({"message": "conversationId, sender, text required"}), 400
+def send_message_rest():
+    """
+    Body:
+      {
+        "conversationId": "...",
+        "from": "a@a.com",
+        "to": "b@b.com",
+        "text": "Hello"
+      }
 
-    raw_id = str(data["conversationId"]).strip()
-    sender = str(data["sender"]).strip().lower()
-    text = str(data["text"]).strip()
+    Returns:
+      { message: {...}, conversationId: "..." }
+    """
+    data = _require_json()
+    conv_id = (data.get("conversationId") or "").strip()
+    from_email = _normalize_email(data.get("from"))
+    to_email = _normalize_email(data.get("to"))
+    text = (data.get("text") or "").strip()
 
-    if not raw_id or raw_id in ("undefined", "null"):
-        return jsonify({"message": "Invalid conversationId"}), 400
-    if not text:
-        return jsonify({"message": "Message cannot be empty"}), 400
+    if not conv_id or not from_email or not to_email or not text:
+        return jsonify({"message": "conversationId, from, to, text required"}), 400
 
-    message = {"sender": sender, "text": text, "timestamp": datetime.now(UTC)}
-
-    # Try by UUID id first
-    filter_query = {"id": raw_id}
-    result = conversations.update_one(
-        filter_query,
-        {"$push": {"messages": message}, "$set": {"updated_at": datetime.now(UTC)}}
-    )
-
-    # If not found, try Mongo _id (ObjectId)
-    if result.matched_count == 0:
-        try:
-            oid = ObjectId(raw_id)
-            filter_query = {"_id": oid}
-            result = conversations.update_one(
-                filter_query,
-                {"$push": {"messages": message}, "$set": {"updated_at": datetime.now(UTC)}}
-            )
-        except Exception:
-            pass
-
-    if result.matched_count == 0:
-        return jsonify({"message": "Conversation not found"}), 404
-
-    conv = conversations.find_one(filter_query)
-    return jsonify({"conversation": _serialize_conversation(conv)}), 200
-
-# =====================================================
-# CONTACT FORM
-# =====================================================
-@app.post("/api/contact")
-def submit_contact():
-    data = request.get_json(silent=True) or {}
-    if not data:
-        return jsonify({"message": "No data provided"}), 400
-
-    contact = {
-        "name": data.get("name", ""),
-        "email": data.get("email", ""),
-        "message": data.get("message", ""),
-        "created_at": datetime.now(UTC)
+    msg = {
+        "id": uuid.uuid4().hex,
+        "from": from_email,
+        "to": to_email,
+        "text": text,
+        "timestamp": datetime.now(UTC),
     }
 
-    contacts.insert_one(contact)
-    return jsonify({"message": "Message sent"}), 201
+    try:
+        res = conversations.update_one(
+            {"id": conv_id},
+            {"$push": {"messages": msg}, "$set": {"updated_at": datetime.now(UTC)}},
+        )
+        if res.matched_count == 0:
+            return jsonify({"message": "Conversation not found"}), 404
 
-# =====================================================
-# RUN
-# =====================================================
-print("\n📍 Registered routes:")
-for rule in app.url_map.iter_rules():
-    print(rule)
+        # Emit real-time to both users if connected
+        safe_msg = {**msg, "timestamp": _iso(msg["timestamp"])}
+        socketio.emit("new_message", {"conversationId": conv_id, "message": safe_msg}, room=from_email)
+        socketio.emit("new_message", {"conversationId": conv_id, "message": safe_msg}, room=to_email)
 
+        return jsonify({"conversationId": conv_id, "message": safe_msg}), 201
+
+    except Exception as e:
+        print("❌ /api/messages/send error:", repr(e))
+        return jsonify({"message": "Internal Server Error"}), 500
+
+
+# =============================================================================
+# Contacts (optional, but common in your app)
+# =============================================================================
+@app.get("/api/contacts")
+def get_contacts():
+    """
+    GET /api/contacts?email=user@example.com
+    """
+    email = _normalize_email(request.args.get("email") or "")
+    if not email:
+        return jsonify({"message": "email is required"}), 400
+
+    try:
+        docs = list(contacts.find({"ownerEmail": email}).sort("created_at", DESCENDING))
+        out = []
+        for d in docs:
+            dd = dict(d)
+            oid = dd.pop("_id", None)
+            dd["id"] = str(oid) if oid else dd.get("id")
+            dd["created_at"] = _iso(dd.get("created_at"))
+            out.append(dd)
+        return jsonify({"contacts": out}), 200
+    except Exception as e:
+        print("❌ /api/contacts error:", repr(e))
+        return jsonify({"message": "Internal Server Error"}), 500
+
+
+@app.post("/api/contacts")
+def add_contact():
+    """
+    Body:
+      { "ownerEmail": "a@a.com", "contactEmail": "b@b.com", "name": "Bob" }
+    """
+    data = _require_json()
+    owner = _normalize_email(data.get("ownerEmail"))
+    contact_email = _normalize_email(data.get("contactEmail"))
+    name = (data.get("name") or "").strip()
+
+    if not owner or not contact_email:
+        return jsonify({"message": "ownerEmail and contactEmail required"}), 400
+
+    doc = {
+        "ownerEmail": owner,
+        "contactEmail": contact_email,
+        "name": name,
+        "created_at": datetime.now(UTC),
+    }
+    contacts.insert_one(doc)
+    return jsonify({"message": "Contact added"}), 201
+
+
+# =============================================================================
+# Run
+# =============================================================================
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    # IMPORTANT: run via socketio.run, NOT app.run, for Socket.IO stability
+    socketio.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=True)
