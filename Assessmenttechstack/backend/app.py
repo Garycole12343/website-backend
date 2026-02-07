@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, render_template, redirect, request, session, jsonify
 from flask_cors import CORS
 from pymongo import MongoClient
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -8,15 +8,15 @@ import uuid
 
 app = Flask(__name__)
 
-# -----------------------------
+# Configuration 
+app.config["SESSION_PERMANENT"] = False
+app.config["SESSION_TYPE"] = "filesystem"
+
 # CORS
-# -----------------------------
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# -----------------------------
 # MongoDB
-# -----------------------------
-client = MongoClient("mongodb://localhost:27017/")
+client = MongoClient("mongodb+srv://garyc4088:Meghank1@skillsphere.wk5x60k.mongodb.net/")
 db = client["skillswap"]
 
 users = db["users"]
@@ -29,9 +29,7 @@ print("✅ MongoDB skillswap.resources ready!")
 print("✅ MongoDB skillswap.conversations ready!")
 print("✅ MongoDB skillswap.contacts ready!")
 
-# -----------------------------
 # Helpers
-# -----------------------------
 def _iso(v):
     return v.isoformat() if isinstance(v, datetime) else v
 
@@ -42,12 +40,11 @@ def _serialize_conversation(conv_doc):
 
     c = dict(conv_doc)
 
-    # Keep the Mongo id for debugging, but don’t rely on it in frontend
+    # Keep the Mongo id for debugging
     mongo_id = c.pop("_id", None)
     c["mongoId"] = str(mongo_id) if mongo_id else None
 
-    # Ensure we always have "id" (your UUID string)
-    # (If missing, fallback to mongoId)
+    # Ensure we always have "id" (UUID string or fallback)
     c["id"] = c.get("id") or (str(mongo_id) if mongo_id else None)
 
     c["created_at"] = _iso(c.get("created_at"))
@@ -63,16 +60,12 @@ def _serialize_conversation(conv_doc):
 
     return c
 
-# -----------------------------
 # Home
-# -----------------------------
 @app.get("/")
 def home():
     return jsonify({"message": "Flask + MongoDB Backend Live!"})
 
-# =====================================================
 # RESOURCES
-# =====================================================
 @app.route("/api/resources", methods=["GET", "POST"])
 def resources_route():
     if request.method == "GET":
@@ -111,7 +104,6 @@ def resources_route():
 
     return jsonify(inserted_out), 201
 
-
 @app.route("/api/resources/<resource_id>", methods=["PUT"])
 def update_resource(resource_id):
     data = request.get_json(silent=True) or {}
@@ -141,9 +133,7 @@ def update_resource(resource_id):
     out["id"] = oid_str
     return jsonify(out), 200
 
-# =====================================================
 # AUTH
-# =====================================================
 @app.post("/api/register")
 def register():
     data = request.get_json(silent=True) or {}
@@ -174,7 +164,6 @@ def register():
     users.insert_one(user)
     return jsonify({"message": "User created"}), 201
 
-
 @app.post("/api/login")
 def login():
     data = request.get_json(silent=True) or {}
@@ -193,9 +182,7 @@ def login():
 
     return jsonify({"user": user_out}), 200
 
-# =====================================================
 # PROFILE
-# =====================================================
 @app.route("/api/profile", methods=["GET", "POST"])
 def profile():
     if request.method == "GET":
@@ -240,20 +227,17 @@ def profile():
 
     return jsonify({"message": "Profile saved"}), 200
 
-# =====================================================
-# MESSAGES / CONVERSATIONS (FIXED)
-# =====================================================
+# MESSAGES / CONVERSATIONS 
 @app.get("/api/messages")
 def get_conversations():
     email = request.args.get("email", "").strip().lower()
     if not email:
         return jsonify({"message": "Email required"}), 400
 
-    # Correct array match
+    # Find conversations where this email is a participant
     docs = list(conversations.find({"participants": email}).sort("updated_at", -1))
     out = [_serialize_conversation(c) for c in docs]
     return jsonify({"conversations": out}), 200
-
 
 @app.post("/api/messages/conversation")
 def create_conversation():
@@ -265,7 +249,7 @@ def create_conversation():
     if len(participants) != 2:
         return jsonify({"message": "Exactly 2 participants required"}), 400
 
-    # Normalize ordering so duplicates don’t happen
+    # Normalize ordering to prevent duplicates
     participants_sorted = sorted(participants)
 
     existing = conversations.find_one({"participants": participants_sorted})
@@ -284,7 +268,6 @@ def create_conversation():
     conversations.insert_one(conversation)
     return jsonify({"conversation": _serialize_conversation(conversation)}), 201
 
-
 @app.post("/api/messages/send")
 def send_message():
     data = request.get_json(silent=True) or {}
@@ -302,14 +285,14 @@ def send_message():
 
     message = {"sender": sender, "text": text, "timestamp": datetime.now(UTC)}
 
-    # Try by UUID id first
+    # Try UUID id first
     filter_query = {"id": raw_id}
     result = conversations.update_one(
         filter_query,
         {"$push": {"messages": message}, "$set": {"updated_at": datetime.now(UTC)}}
     )
 
-    # If not found, try Mongo _id (ObjectId)
+    # Fallback to Mongo _id
     if result.matched_count == 0:
         try:
             oid = ObjectId(raw_id)
@@ -327,9 +310,7 @@ def send_message():
     conv = conversations.find_one(filter_query)
     return jsonify({"conversation": _serialize_conversation(conv)}), 200
 
-# =====================================================
 # CONTACT FORM
-# =====================================================
 @app.post("/api/contact")
 def submit_contact():
     data = request.get_json(silent=True) or {}
@@ -346,9 +327,7 @@ def submit_contact():
     contacts.insert_one(contact)
     return jsonify({"message": "Message sent"}), 201
 
-# =====================================================
 # RUN
-# =====================================================
 print("\n📍 Registered routes:")
 for rule in app.url_map.iter_rules():
     print(rule)
