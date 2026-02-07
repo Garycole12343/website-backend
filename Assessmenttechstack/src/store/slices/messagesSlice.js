@@ -24,10 +24,11 @@ export const createConversation = createAsyncThunk(
       const res = await fetch("/api/messages/conversation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ participants })
+        body: JSON.stringify({ participants }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return rejectWithValue(data.message || "Failed to create conversation");
+      // backend returns { conversation: {...} }
       return data.conversation;
     } catch (err) {
       return rejectWithValue(err?.message || "Network error");
@@ -35,19 +36,20 @@ export const createConversation = createAsyncThunk(
   }
 );
 
-// Send message
+// Send message (matches backend: from/to/text)
 export const sendMessage = createAsyncThunk(
   "messages/sendMessage",
-  async ({ conversationId, sender, text }, { rejectWithValue }) => {
+  async ({ conversationId, from, to, text }, { rejectWithValue }) => {
     try {
       const res = await fetch("/api/messages/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId, sender, text })
+        body: JSON.stringify({ conversationId, from, to, text }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return rejectWithValue(data.message || "Failed to send message");
-      return data.conversation;
+      // backend returns: { conversationId, message }
+      return { conversationId: data.conversationId || conversationId, message: data.message };
     } catch (err) {
       return rejectWithValue(err?.message || "Network error");
     }
@@ -57,35 +59,45 @@ export const sendMessage = createAsyncThunk(
 const initialState = {
   conversations: [],
   status: "idle",
-  error: null
+  error: null,
 };
 
 const messagesSlice = createSlice({
   name: "messages",
   initialState,
   reducers: {
-    // Optimistic updates for UI
-    addMessage: (state, action) => {
-      const { conversationId, sender, text, timestamp = new Date().toISOString() } = action.payload;
-      const convIndex = state.conversations.findIndex(c => c.id === conversationId);
-      if (convIndex >= 0) {
-        state.conversations[convIndex].messages.push({ sender, text, timestamp });
-        // Move to top
-        const [conv] = state.conversations.splice(convIndex, 1);
-        state.conversations.unshift(conv);
-      }
-    },
-    addConversation: (state, action) => {
-      const newConv = action.payload;
-      if (!state.conversations.find(c => c.id === newConv.id)) {
-        state.conversations.unshift(newConv);
-      }
-    },
+    // Optional: clear on logout
     clearMessages: (state) => {
       state.conversations = [];
       state.status = "idle";
       state.error = null;
-    }
+    },
+
+    // For socket events / optimistic UI if you want it
+    addIncomingMessage: (state, action) => {
+      const { conversationId, message } = action.payload || {};
+      if (!conversationId || !message) return;
+
+      const idx = state.conversations.findIndex((c) => c.id === conversationId);
+      if (idx >= 0) {
+        const conv = state.conversations[idx];
+        conv.messages = conv.messages || [];
+        conv.messages.push(message);
+        conv.updated_at = message.timestamp || new Date().toISOString();
+
+        // Move to top
+        state.conversations.splice(idx, 1);
+        state.conversations.unshift(conv);
+      }
+    },
+
+    addConversation: (state, action) => {
+      const newConv = action.payload;
+      if (!newConv?.id) return;
+      if (!state.conversations.find((c) => c.id === newConv.id)) {
+        state.conversations.unshift(newConv);
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -102,32 +114,40 @@ const messagesSlice = createSlice({
         state.status = "failed";
         state.error = action.payload || "Failed to load";
       })
+
       // createConversation
       .addCase(createConversation.fulfilled, (state, action) => {
-        const existing = state.conversations.find((c) => c.id === action.payload.id);
-        if (!existing) state.conversations.unshift(action.payload);
+        const conv = action.payload;
+        if (!conv?.id) return;
+        const existing = state.conversations.find((c) => c.id === conv.id);
+        if (!existing) state.conversations.unshift(conv);
       })
       .addCase(createConversation.rejected, (state, action) => {
         state.error = action.payload || "Failed to create conversation";
       })
-      // sendMessage
+
+      // sendMessage: update state locally using returned message
       .addCase(sendMessage.fulfilled, (state, action) => {
-        const idx = state.conversations.findIndex((c) => c.id === action.payload.id);
+        const { conversationId, message } = action.payload || {};
+        if (!conversationId || !message) return;
+
+        const idx = state.conversations.findIndex((c) => c.id === conversationId);
         if (idx >= 0) {
-          state.conversations[idx] = action.payload;
+          const conv = state.conversations[idx];
+          conv.messages = conv.messages || [];
+          conv.messages.push(message);
+          conv.updated_at = message.timestamp || new Date().toISOString();
+
           // Move to top
-          const [conv] = state.conversations.splice(idx, 1);
+          state.conversations.splice(idx, 1);
           state.conversations.unshift(conv);
-        } else {
-          state.conversations.unshift(action.payload);
         }
       })
       .addCase(sendMessage.rejected, (state, action) => {
         state.error = action.payload || "Failed to send message";
       });
-  }
+  },
 });
 
-// Export ALL actions (thunks + reducers) - fixes import errors
-export const { addMessage, addConversation, clearMessages } = messagesSlice.actions;
+export const { clearMessages, addIncomingMessage, addConversation } = messagesSlice.actions;
 export default messagesSlice.reducer;
