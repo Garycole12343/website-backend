@@ -1,4 +1,4 @@
-// src/pages/messages.jsx - FULL CODE WITH USERNAME FIX & NOTIFICATIONS
+// src/pages/messages.jsx - COMPLETE UPDATED FOR SOCKET.IO
 import React, { useEffect, useState, useContext, useRef, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useLocation } from "react-router-dom";
@@ -21,25 +21,10 @@ function Messages() {
 
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [newMessage, setNewMessage] = useState("");
-  const [userNames, setUserNames] = useState({});  // Cache usernames
+  const [userNames, setUserNames] = useState({});
   const messagesEndRef = useRef(null);
-  const notificationSoundRef = useRef(null);
 
   const currentUser = (userEmail || "").toLowerCase().trim();
-
-  // Create notification sound
-  useEffect(() => {
-    const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-correct-answer-tone-2870.mp3');
-    audio.volume = 0.2;
-    notificationSoundRef.current = audio;
-    
-    return () => {
-      if (notificationSoundRef.current) {
-        notificationSoundRef.current.pause();
-        notificationSoundRef.current = null;
-      }
-    };
-  }, []);
 
   // Fetch username for email
   const getUserName = async (email) => {
@@ -57,38 +42,25 @@ function Messages() {
     } catch (err) {
       console.error("Error fetching username:", err);
     }
-    return email.split('@')[0];  // Fallback
+    return email.split('@')[0];
   };
 
-  // Load conversations from Mongo on page open
+  // Load conversations
   useEffect(() => {
     if (isAuthenticated && currentUser) {
       dispatch(fetchConversations(currentUser));
     }
   }, [dispatch, isAuthenticated, currentUser]);
 
-  // Pre-fetch names for all conversations
-  useEffect(() => {
-    conversations.forEach(async (conv) => {
-      const otherEmail = (conv?.participants || []).find((p) => p !== currentUser);
-      if (otherEmail && !userNames[otherEmail]) {
-        await getUserName(otherEmail);
-      }
-    });
-  }, [conversations, currentUser]);
-
-  // Auto-open a conversation when navigated from a board
+  // Auto-open conversation
   useEffect(() => {
     const convId = location.state?.conversationId;
     if (convId) {
       setSelectedConversationId(convId);
-      
-      // Mark any notifications for this conversation as read
       const notifications = JSON.parse(localStorage.getItem('skillswap_notifications') || '{}');
       const conversationNotifications = (notifications.notifications || [])
         .filter(n => n.conversationId === convId && !n.read)
         .map(n => n.id);
-      
       conversationNotifications.forEach(id => markAsRead(id));
     }
   }, [location.state, markAsRead]);
@@ -102,35 +74,39 @@ function Messages() {
     return (selectedConversation?.participants || []).find((p) => p !== currentUser);
   }, [selectedConversation, currentUser]);
 
-  const otherParticipantName = userNames[otherParticipantEmail] || 
-                              otherParticipantEmail?.split('@')[0] || 'Unknown';
-
-  // Initialize socket connection
+  // ✅✅✅ UPDATED: Initialize Socket.IO connection
   useEffect(() => {
-    if (!isAuthenticated || !currentUser) return;
+    if (!isAuthenticated || !currentUser) {
+      console.log('💬 messages.jsx: Not authenticated, skipping socket');
+      return;
+    }
 
+    console.log('💬 messages.jsx: Setting up Socket.IO for', currentUser);
     socketService.connect(currentUser);
 
-    // Subscribe to new messages
+    // ✅✅✅ Subscribe to NEW_MESSAGE events (Socket.IO format)
     const unsubscribe = socketService.subscribe('NEW_MESSAGE', (data) => {
+      console.log('💬💬💬 messages.jsx: Received NEW_MESSAGE (Socket.IO):', data);
+      
+      // Socket.IO format: { conversationId: "...", message: { text: "...", from: "...", timestamp: "..." } }
       if (data.conversationId && data.message) {
-        dispatch(addIncomingMessage(data));
-        
-        // Play sound if not in current conversation
-        if (data.conversationId !== selectedConversationId && notificationSoundRef.current) {
-          try {
-            notificationSoundRef.current.play();
-          } catch (err) {
-            console.log('Sound play failed:', err);
+        console.log('💬 Dispatching to Redux:', data.conversationId);
+        dispatch(addIncomingMessage({
+          conversationId: data.conversationId,
+          message: {
+            text: data.message.text,
+            from: data.message.from,
+            timestamp: data.message.timestamp || new Date().toISOString()
           }
-        }
+        }));
       }
     });
 
     return () => {
+      console.log('💬 messages.jsx: Cleaning up socket subscription');
       unsubscribe();
     };
-  }, [isAuthenticated, currentUser, dispatch, selectedConversationId]);
+  }, [isAuthenticated, currentUser, dispatch]);
 
   // Send message
   const handleSendMessage = async () => {
@@ -138,6 +114,8 @@ function Messages() {
 
     const to = otherParticipantEmail;
     const text = newMessage.trim();
+
+    console.log('💬 Sending message:', { to, text, from: currentUser });
 
     try {
       await dispatch(
@@ -151,8 +129,9 @@ function Messages() {
 
       setNewMessage("");
       
-      // Also send via socket for real-time
+      // Also send via Socket.IO
       if (socketService.isConnected()) {
+        console.log('💬 Sending via Socket.IO');
         socketService.sendMessage({
           conversationId: selectedConversationId,
           from: currentUser,
@@ -166,23 +145,10 @@ function Messages() {
     }
   };
 
-  // Scroll to bottom on new messages / conversation switch
+  // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [selectedConversationId, selectedConversation?.messages?.length]);
-
-  // Mark conversation as read when selected
-  useEffect(() => {
-    if (selectedConversationId) {
-      // Find notifications for this conversation and mark as read
-      const notifications = JSON.parse(localStorage.getItem('skillswap_notifications') || '{}');
-      const conversationNotifications = (notifications.notifications || [])
-        .filter(n => n.conversationId === selectedConversationId && !n.read)
-        .map(n => n.id);
-      
-      conversationNotifications.forEach(id => markAsRead(id));
-    }
-  }, [selectedConversationId, markAsRead]);
 
   if (!isAuthenticated) {
     return (
@@ -198,7 +164,7 @@ function Messages() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">Messages</h1>
         <div className="text-sm text-gray-500">
-          Real-time messaging with notifications
+          Real-time messaging with Socket.IO
         </div>
       </div>
 
@@ -208,17 +174,6 @@ function Messages() {
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
             <span className="text-gray-600">Loading conversations…</span>
           </div>
-        </div>
-      )}
-      {error && (
-        <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700">
-          <p className="font-medium">Error: {error}</p>
-          <button 
-            onClick={() => dispatch(fetchConversations(currentUser))}
-            className="mt-2 text-red-600 hover:text-red-800 font-medium"
-          >
-            Try Again
-          </button>
         </div>
       )}
 
@@ -249,7 +204,6 @@ function Messages() {
                     const displayName = userNames[otherEmail] || otherEmail?.split('@')[0] || 'Loading...';
                     const lastMessage = conv.messages?.[conv.messages.length - 1];
                     const isSelected = selectedConversationId === conv.id;
-                    const hasUnread = false; // You can add unread logic here
                     
                     return (
                       <li
@@ -264,16 +218,11 @@ function Messages() {
                             <div className="font-medium text-gray-900">{displayName}</div>
                             {lastMessage && (
                               <div className="text-sm text-gray-600 truncate mt-1">
-                                <span className={hasUnread ? "font-medium" : ""}>
-                                  {lastMessage.from === currentUser ? "You: " : ""}
-                                  {lastMessage.text}
-                                </span>
+                                {lastMessage.from === currentUser ? "You: " : ""}
+                                {lastMessage.text}
                               </div>
                             )}
                           </div>
-                          {hasUnread && (
-                            <div className="w-2 h-2 bg-green-600 rounded-full ml-2 mt-2"></div>
-                          )}
                         </div>
                         {lastMessage && (
                           <div className="text-xs text-gray-400 mt-2">
@@ -303,14 +252,14 @@ function Messages() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-bold text-gray-800">
-                      Conversation with {otherParticipantName}
+                      Conversation with {otherParticipantEmail?.split('@')[0] || 'User'}
                     </h2>
                     <p className="text-sm text-gray-500">{otherParticipantEmail}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${socketService.isConnected() ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                     <span className="text-xs text-gray-500">
-                      {socketService.isConnected() ? 'Connected' : 'Disconnected'}
+                      {socketService.isConnected() ? 'Socket.IO Connected' : 'Disconnected'}
                     </span>
                   </div>
                 </div>
@@ -385,7 +334,7 @@ function Messages() {
                   </button>
                 </div>
                 <div className="text-xs text-gray-500 mt-2">
-                  Press Enter to send • Real-time updates active
+                  Press Enter to send 
                 </div>
               </div>
             </div>
@@ -396,8 +345,7 @@ function Messages() {
               </svg>
               <h3 className="text-xl font-medium text-gray-700 mb-2">Select a Conversation</h3>
               <p className="text-gray-500 max-w-md mx-auto">
-                Choose a conversation from the sidebar to view and send messages.
-                You can start conversations from any board by clicking "Contact" on a post.
+                Choose a conversation to view messages. You can start a new conversation from any board by clicking "Contact" on a skill that has been added.  
               </p>
             </div>
           )}
