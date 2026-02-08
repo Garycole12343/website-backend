@@ -28,7 +28,6 @@ export const createConversation = createAsyncThunk(
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return rejectWithValue(data.message || "Failed to create conversation");
-      // backend returns { conversation: {...} }
       return data.conversation;
     } catch (err) {
       return rejectWithValue(err?.message || "Network error");
@@ -48,13 +47,60 @@ export const sendMessage = createAsyncThunk(
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return rejectWithValue(data.message || "Failed to send message");
+
       // backend returns: { conversationId, message }
-      return { conversationId: data.conversationId || conversationId, message: data.message };
+      return {
+        conversationId: data.conversationId || conversationId,
+        message: data.message,
+      };
     } catch (err) {
       return rejectWithValue(err?.message || "Network error");
     }
   }
 );
+
+// ---- helpers ----
+function ensureConvShape(conv) {
+  if (!conv) return conv;
+  if (!Array.isArray(conv.messages)) conv.messages = [];
+  return conv;
+}
+
+function messageKey(msg) {
+  // prefer server id; fallback to stable composite key
+  if (!msg) return "";
+  return (
+    msg.id ||
+    `${(msg.from || "").toLowerCase()}|${(msg.to || "").toLowerCase()}|${msg.text || ""}|${msg.timestamp || ""}`
+  );
+}
+
+function hasMessage(conv, msg) {
+  if (!conv || !msg) return false;
+  const key = messageKey(msg);
+  if (!key) return false;
+  return (conv.messages || []).some((m) => messageKey(m) === key);
+}
+
+function upsertMessageAndBump(state, conversationId, message) {
+  if (!conversationId || !message) return;
+
+  const idx = state.conversations.findIndex((c) => c.id === conversationId);
+  if (idx < 0) return;
+
+  const conv = ensureConvShape(state.conversations[idx]);
+
+  // Prevent duplicates (REST + Socket broadcast)
+  if (!hasMessage(conv, message)) {
+    conv.messages.push(message);
+  }
+
+  conv.updated_at = message.timestamp || new Date().toISOString();
+
+  // Move conversation to top
+  state.conversations.splice(idx, 1);
+  state.conversations.unshift(conv);
+}
 
 const initialState = {
   conversations: [],
@@ -66,36 +112,36 @@ const messagesSlice = createSlice({
   name: "messages",
   initialState,
   reducers: {
-    // Optional: clear on logout
     clearMessages: (state) => {
       state.conversations = [];
       state.status = "idle";
       state.error = null;
     },
 
-    // For socket events / optimistic UI if you want it
+    // Socket events
     addIncomingMessage: (state, action) => {
       const { conversationId, message } = action.payload || {};
-      if (!conversationId || !message) return;
-
-      const idx = state.conversations.findIndex((c) => c.id === conversationId);
-      if (idx >= 0) {
-        const conv = state.conversations[idx];
-        conv.messages = conv.messages || [];
-        conv.messages.push(message);
-        conv.updated_at = message.timestamp || new Date().toISOString();
-
-        // Move to top
-        state.conversations.splice(idx, 1);
-        state.conversations.unshift(conv);
-      }
+      upsertMessageAndBump(state, conversationId, message);
     },
 
     addConversation: (state, action) => {
-      const newConv = action.payload;
-      if (!newConv?.id) return;
-      if (!state.conversations.find((c) => c.id === newConv.id)) {
+      const conv = action.payload;
+      if (!conv?.id) return;
+
+      // normalize
+      const newConv = ensureConvShape({ ...conv });
+
+      const existingIdx = state.conversations.findIndex((c) => c.id === newConv.id);
+      if (existingIdx === -1) {
         state.conversations.unshift(newConv);
+      } else {
+        // update existing fields without losing messages
+        const existing = ensureConvShape(state.conversations[existingIdx]);
+        state.conversations[existingIdx] = {
+          ...existing,
+          ...newConv,
+          messages: existing.messages, // keep current messages
+        };
       }
     },
   },
@@ -108,7 +154,7 @@ const messagesSlice = createSlice({
       })
       .addCase(fetchConversations.fulfilled, (state, action) => {
         state.status = "succeeded";
-        state.conversations = action.payload;
+        state.conversations = (action.payload || []).map((c) => ensureConvShape({ ...c }));
       })
       .addCase(fetchConversations.rejected, (state, action) => {
         state.status = "failed";
@@ -119,8 +165,11 @@ const messagesSlice = createSlice({
       .addCase(createConversation.fulfilled, (state, action) => {
         const conv = action.payload;
         if (!conv?.id) return;
-        const existing = state.conversations.find((c) => c.id === conv.id);
-        if (!existing) state.conversations.unshift(conv);
+
+        const newConv = ensureConvShape({ ...conv });
+
+        const existing = state.conversations.find((c) => c.id === newConv.id);
+        if (!existing) state.conversations.unshift(newConv);
       })
       .addCase(createConversation.rejected, (state, action) => {
         state.error = action.payload || "Failed to create conversation";
@@ -129,19 +178,7 @@ const messagesSlice = createSlice({
       // sendMessage: update state locally using returned message
       .addCase(sendMessage.fulfilled, (state, action) => {
         const { conversationId, message } = action.payload || {};
-        if (!conversationId || !message) return;
-
-        const idx = state.conversations.findIndex((c) => c.id === conversationId);
-        if (idx >= 0) {
-          const conv = state.conversations[idx];
-          conv.messages = conv.messages || [];
-          conv.messages.push(message);
-          conv.updated_at = message.timestamp || new Date().toISOString();
-
-          // Move to top
-          state.conversations.splice(idx, 1);
-          state.conversations.unshift(conv);
-        }
+        upsertMessageAndBump(state, conversationId, message);
       })
       .addCase(sendMessage.rejected, (state, action) => {
         state.error = action.payload || "Failed to send message";

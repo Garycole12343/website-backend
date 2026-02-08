@@ -1,6 +1,7 @@
 import React, { useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
+import NotificationBell from "./NotificationBell"; // Import NotificationBell
 import logo from "../../images/skillsphere-logo.png";
 
 const Header = () => {
@@ -15,7 +16,6 @@ const Header = () => {
   return (
     <header className="w-full border-b bg-white/80 backdrop-blur shadow-sm">
       <nav className="w-full">
-        {/* Full-width background, centered content */}
         <div className="max-w-full mx-auto px-6 flex items-center justify-between py-3">
           {/* Logo */}
           <Link to="/">
@@ -47,6 +47,13 @@ const Header = () => {
             <Link to="/contact" className="text-slate-600 hover:text-blue-600">
               Contact
             </Link>
+
+            {/* Notification Bell for authenticated users */}
+            {isAuthenticated && (
+              <div className="flex items-center">
+                <NotificationBell />
+              </div>
+            )}
 
             {isAuthenticated ? (
               <div className="flex items-center gap-3">

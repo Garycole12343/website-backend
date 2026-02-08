@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import datetime, UTC
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from bson import ObjectId
 from flask import Flask, jsonify, request, session
@@ -28,13 +28,20 @@ app.config["SESSION_USE_SIGNER"] = True
 app.config["SESSION_KEY_PREFIX"] = "skillswap_session:"
 Session(app)
 
-# CORS (API + SocketIO)
+# Frontend origin (Vite)
 VITE_ORIGIN = os.getenv("VITE_ORIGIN", "http://localhost:5173")
-CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
+# CORS for REST API
+CORS(
+    app,
+    resources={r"/api/*": {"origins": [VITE_ORIGIN]}},
+    supports_credentials=True,
+)
+
+# Socket.IO CORS must match your frontend origin
 socketio = SocketIO(
     app,
-    cors_allowed_origins=[VITE_ORIGIN, "*"],
+    cors_allowed_origins=[VITE_ORIGIN],
     async_mode="threading",
     logger=True,
     engineio_logger=True,
@@ -44,7 +51,7 @@ socketio = SocketIO(
 # =============================================================================
 # MongoDB
 # =============================================================================
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://garyc4088:Meghank1@skillsphere.wk5x60k.mongodb.net/")
 client = MongoClient(MONGO_URI)
 db = client["skillswap"]
 
@@ -53,7 +60,6 @@ resources_col = db["resources"]
 conversations = db["conversations"]
 contacts = db["contacts"]
 
-# Helpful indexes (safe to call repeatedly)
 try:
     users.create_index([("email", ASCENDING)], unique=True)
     conversations.create_index([("id", ASCENDING)], unique=True)
@@ -78,11 +84,19 @@ def _safe_object_id(value: str) -> Optional[ObjectId]:
     return None
 
 
+def _normalize_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+
+def _require_json() -> Dict[str, Any]:
+    return request.get_json(silent=True) or {}
+
+
 def _serialize_user(doc: Dict[str, Any]) -> Dict[str, Any]:
     d = dict(doc)
     oid = d.pop("_id", None)
     d["id"] = str(oid) if oid else d.get("id")
-    d.pop("password", None)  # never return hashes
+    d.pop("password", None)
     d["created_at"] = _iso(d.get("created_at"))
     d["updated_at"] = _iso(d.get("updated_at"))
     return d
@@ -98,14 +112,10 @@ def _serialize_resource(doc: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _serialize_conversation(conv_doc: Dict[str, Any]) -> Dict[str, Any]:
-    """Make conversation JSON-safe."""
     c = dict(conv_doc)
     mongo_id = c.pop("_id", None)
     c["mongoId"] = str(mongo_id) if mongo_id else None
-
-    # stable id used by frontend
     c["id"] = c.get("id") or (str(mongo_id) if mongo_id else None)
-
     c["created_at"] = _iso(c.get("created_at"))
     c["updated_at"] = _iso(c.get("updated_at"))
 
@@ -119,31 +129,45 @@ def _serialize_conversation(conv_doc: Dict[str, Any]) -> Dict[str, Any]:
     return c
 
 
-def _normalize_email(email: str) -> str:
-    return (email or "").strip().lower()
-
-
-def _require_json() -> Dict[str, Any]:
-    return request.get_json(silent=True) or {}
-
-
 # =============================================================================
-# Socket.IO Events
+# Socket.IO Events (FIXED)
 # =============================================================================
 @socketio.on("connect")
 def on_connect(auth=None):
-    # auth is frequently None unless client sends it
-    auth = auth or {}
-    email = _normalize_email(auth.get("email") or "")
+    """
+    FIX:
+    - Do NOT reject the connection if auth/email is missing.
+    - Just connect, then let the client register their email via a separate event.
+    This prevents 'websocket error' loops and 500s on handshake.
+    """
+    try:
+        emit("connect_success", {"message": "Connected. Please register email."})
+    except Exception as e:
+        print("❌ Socket connect handler error:", repr(e))
 
-    if not email:
-        print("⚠️ SocketIO connect without email auth")
-        emit("connect_error", {"message": "Email auth required"})
-        return False  # reject connection cleanly
 
-    print(f"✅ SocketIO connected: {email}")
-    join_room(email)
-    emit("connect_success", {"message": f"Connected as {email}"}, room=email)
+@socketio.on("register")
+def on_register(payload):
+    """
+    Client should call immediately after connect:
+      socket.emit("register", { email: "user@example.com" })
+
+    This joins them to a room named by their email.
+    """
+    try:
+        data = payload or {}
+        email = _normalize_email(data.get("email") or "")
+        if not email:
+            emit("register_error", {"message": "email required"})
+            return
+
+        join_room(email)
+        emit("register_success", {"message": f"Registered room for {email}", "email": email}, room=email)
+        print(f"✅ Socket registered room: {email}")
+
+    except Exception as e:
+        print("❌ register socket error:", repr(e))
+        emit("register_error", {"message": "Internal error"})
 
 
 @socketio.on("disconnect")
@@ -195,9 +219,10 @@ def socket_send_message(payload):
             emit("message_error", {"message": "Conversation not found"})
             return
 
-        # broadcast to both participants' rooms
-        emit("new_message", {"conversationId": conv_id, "message": {**msg, "timestamp": _iso(msg["timestamp"])}}, room=from_email)
-        emit("new_message", {"conversationId": conv_id, "message": {**msg, "timestamp": _iso(msg["timestamp"])}}, room=to_email)
+        safe_msg = {**msg, "timestamp": _iso(msg["timestamp"])}
+
+        emit("new_message", {"conversationId": conv_id, "message": safe_msg}, room=from_email)
+        emit("new_message", {"conversationId": conv_id, "message": safe_msg}, room=to_email)
 
     except Exception as e:
         print("❌ send_message socket error:", repr(e))
@@ -213,23 +238,17 @@ def home():
 
 
 # =============================================================================
-# Resources (Boards)
+# Resources
 # =============================================================================
 @app.route("/api/resources", methods=["GET", "POST"])
 def resources_route():
     if request.method == "GET":
         category = (request.args.get("category") or "").strip()
         query = {"category": category} if category else {}
-
-        docs = []
-        for doc in resources_col.find(query):
-            docs.append(_serialize_resource(doc))
-
-        # newest first
+        docs = [_serialize_resource(doc) for doc in resources_col.find(query)]
         docs.sort(key=lambda x: x.get("created_at") or "", reverse=True)
         return jsonify({"resources": docs}), 200
 
-    # POST
     data = _require_json()
     title = (data.get("title") or "").strip()
     if not title:
@@ -291,12 +310,11 @@ def register():
         "skillLevel": data.get("skillLevel"),
         "created_at": datetime.now(UTC),
         "updated_at": datetime.now(UTC),
+        "profile": {},
     }
     users.insert_one(user_doc)
 
-    # optional login session
     session["userEmail"] = email
-
     saved = users.find_one({"email": email})
     return jsonify({"user": _serialize_user(saved)}), 201
 
@@ -332,27 +350,78 @@ def me():
     user = users.find_one({"email": email})
     return jsonify({"user": _serialize_user(user) if user else None}), 200
 
+@app.get("/api/users/by-email")
+def get_user_by_email():
+    email = request.args.get("email", "").strip().lower()
+    if not email:
+        return jsonify({"error": "email required"}), 400
+    
+    user = users.find_one({"email": email})
+    if not user:
+        return jsonify({"user": None}), 200
+    
+    name = f"{user.get('firstName', '')} {user.get('lastName', '')}".strip()
+    if not name:
+        # Clean up email to username (john.doe@ → John Doe)
+        name = email.split('@')[0].replace('.', ' ').title()
+    
+    return jsonify({
+        "user": {
+            "id": str(user["_id"]),
+            "email": user["email"],
+            "name": name
+        }
+    }), 200
 
 # =============================================================================
-# Messaging / Conversations (THIS FIXES YOUR 500)
+# Profile (compat)
+# =============================================================================
+@app.route("/api/profile", methods=["GET", "POST"])
+def profile():
+    if request.method == "GET":
+        email = _normalize_email(request.args.get("email") or "")
+        if not email:
+            return jsonify({"message": "Email required"}), 400
+
+        user = users.find_one({"email": email})
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        return jsonify({"profile": user.get("profile") or {}}), 200
+
+    data = _require_json()
+    email = _normalize_email(str(data.get("email") or ""))
+    profile_update = data.get("profile")
+
+    if not email:
+        return jsonify({"message": "email required"}), 400
+    if not isinstance(profile_update, dict):
+        return jsonify({"message": "profile must be an object"}), 400
+
+    profile_update["updatedAt"] = datetime.now(UTC)
+
+    result = users.update_one(
+        {"email": email},
+        {"$set": {"profile": profile_update, "updated_at": datetime.now(UTC)}},
+        upsert=False,
+    )
+    if result.matched_count == 0:
+        return jsonify({"message": "User not found"}), 404
+
+    return jsonify({"message": "Profile saved"}), 200
+
+
+# =============================================================================
+# Messaging / Conversations
 # =============================================================================
 @app.get("/api/messages")
 def get_conversations():
-    """
-    Frontend calls:
-      GET /api/messages?email=user@example.com
-
-    Returns:
-      { conversations: [...] }
-    """
     email = _normalize_email(request.args.get("email") or "")
     if not email:
         return jsonify({"message": "email is required"}), 400
 
     try:
-        convs = list(
-            conversations.find({"participants": email}).sort("updated_at", DESCENDING)
-        )
+        convs = list(conversations.find({"participants": email}).sort("updated_at", DESCENDING))
         return jsonify({"conversations": [_serialize_conversation(c) for c in convs]}), 200
     except Exception as e:
         print("❌ /api/messages error:", repr(e))
@@ -361,13 +430,6 @@ def get_conversations():
 
 @app.post("/api/messages/conversation")
 def create_conversation():
-    """
-    Body:
-      { "participants": ["a@a.com","b@b.com"] }
-
-    Returns:
-      { conversation: {...} }
-    """
     data = _require_json()
     participants = data.get("participants") or []
     if not isinstance(participants, list) or len(participants) != 2:
@@ -380,7 +442,6 @@ def create_conversation():
 
     participants_sorted = sorted([a, b])
 
-    # Check existing
     existing = conversations.find_one({"participants": participants_sorted})
     if existing:
         return jsonify({"conversation": _serialize_conversation(existing)}), 200
@@ -399,18 +460,6 @@ def create_conversation():
 
 @app.post("/api/messages/send")
 def send_message_rest():
-    """
-    Body:
-      {
-        "conversationId": "...",
-        "from": "a@a.com",
-        "to": "b@b.com",
-        "text": "Hello"
-      }
-
-    Returns:
-      { message: {...}, conversationId: "..." }
-    """
     data = _require_json()
     conv_id = (data.get("conversationId") or "").strip()
     from_email = _normalize_email(data.get("from"))
@@ -436,8 +485,9 @@ def send_message_rest():
         if res.matched_count == 0:
             return jsonify({"message": "Conversation not found"}), 404
 
-        # Emit real-time to both users if connected
         safe_msg = {**msg, "timestamp": _iso(msg["timestamp"])}
+
+        # Emit real-time to both users if connected/registered
         socketio.emit("new_message", {"conversationId": conv_id, "message": safe_msg}, room=from_email)
         socketio.emit("new_message", {"conversationId": conv_id, "message": safe_msg}, room=to_email)
 
@@ -449,13 +499,10 @@ def send_message_rest():
 
 
 # =============================================================================
-# Contacts (optional, but common in your app)
+# Contacts
 # =============================================================================
 @app.get("/api/contacts")
 def get_contacts():
-    """
-    GET /api/contacts?email=user@example.com
-    """
     email = _normalize_email(request.args.get("email") or "")
     if not email:
         return jsonify({"message": "email is required"}), 400
@@ -477,10 +524,6 @@ def get_contacts():
 
 @app.post("/api/contacts")
 def add_contact():
-    """
-    Body:
-      { "ownerEmail": "a@a.com", "contactEmail": "b@b.com", "name": "Bob" }
-    """
     data = _require_json()
     owner = _normalize_email(data.get("ownerEmail"))
     contact_email = _normalize_email(data.get("contactEmail"))
@@ -503,5 +546,4 @@ def add_contact():
 # Run
 # =============================================================================
 if __name__ == "__main__":
-    # IMPORTANT: run via socketio.run, NOT app.run, for Socket.IO stability
     socketio.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=True)

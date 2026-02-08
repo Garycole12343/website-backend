@@ -4,38 +4,48 @@ export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem("user");
-    return raw ? JSON.parse(raw) : null;
+    try {
+      const raw = localStorage.getItem("user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
   });
 
+  // Keep state synced across tabs/windows
   useEffect(() => {
-    const onStorage = () => {
-      const raw = localStorage.getItem("user");
-      setUser(raw ? JSON.parse(raw) : null);
+    const onStorage = (e) => {
+      if (e.key !== "user") return;
+      try {
+        const raw = localStorage.getItem("user");
+        setUser(raw ? JSON.parse(raw) : null);
+      } catch {
+        setUser(null);
+      }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const login = (userObj) => {
+    // Expect userObj to contain .email
     localStorage.setItem("user", JSON.stringify(userObj));
-    localStorage.setItem("userEmail", userObj?.email || "");
     setUser(userObj);
   };
 
   const logout = () => {
     localStorage.removeItem("user");
-    localStorage.removeItem("userEmail");
     setUser(null);
   };
 
   const value = useMemo(() => {
+    const email = (user?.email || "").toLowerCase().trim();
     return {
       user,
-      isAuthenticated: !!user,
-      userEmail: user?.email || localStorage.getItem("userEmail") || "",
+      isAuthenticated: !!email, // tie auth to having a usable email
+      userEmail: email,
       login,
-      logout
+      logout,
     };
   }, [user]);
 
