@@ -1,4 +1,7 @@
-// src/pages/messages.jsx - COMPLETE UPDATED FOR SOCKET.IO
+// src/pages/messages.jsx - COMPLETE UPDATED FOR SOCKET.IO (TRIPLE-SEND FIXED)
+// Sending = REST only
+// Receiving = Socket.IO (ignores own messages to prevent duplicates)
+
 import React, { useEffect, useState, useContext, useRef, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useLocation } from "react-router-dom";
@@ -26,23 +29,29 @@ function Messages() {
 
   const currentUser = (userEmail || "").toLowerCase().trim();
 
-  // Fetch username for email
+  // Fetch username for an email and cache it (keyed by normalized email)
   const getUserName = async (email) => {
-    if (!email || email === currentUser) return currentUser;
-    if (userNames[email]) return userNames[email];
-    
+    const normalized = (email || "").toLowerCase().trim();
+    if (!normalized || normalized === currentUser) return "You";
+    if (userNames[normalized]) return userNames[normalized];
+
     try {
-      const res = await fetch(`/api/users/by-email?email=${encodeURIComponent(email)}`);
+      const res = await fetch(
+        `/api/users/by-email?email=${encodeURIComponent(normalized)}`
+      );
       if (res.ok) {
         const data = await res.json();
-        const name = data.user?.name || email.split('@')[0];
-        setUserNames(prev => ({...prev, [email]: name}));
+        const name = data.user?.name || normalized.split("@")[0];
+        setUserNames((prev) => ({ ...prev, [normalized]: name }));
         return name;
       }
     } catch (err) {
       console.error("Error fetching username:", err);
     }
-    return email.split('@')[0];
+
+    const fallback = normalized.split("@")[0];
+    setUserNames((prev) => ({ ...prev, [normalized]: fallback }));
+    return fallback;
   };
 
   // Load conversations
@@ -52,18 +61,43 @@ function Messages() {
     }
   }, [dispatch, isAuthenticated, currentUser]);
 
-  // Auto-open conversation
+  // Fetch usernames for all participants
   useEffect(() => {
-    const convId = location.state?.conversationId;
+    if (!conversations?.length || !currentUser) return;
+
+    const uniqueEmails = new Set();
+    conversations.forEach((c) => {
+      (c.participants || []).forEach((p) => {
+        const email = (p || "").toLowerCase().trim();
+        if (email && email !== currentUser) uniqueEmails.add(email);
+      });
+    });
+
+    uniqueEmails.forEach((email) => {
+      if (!userNames[email]) getUserName(email);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations, currentUser]);
+
+  // ✅ Auto-open conversation (supports BOTH: ?conversation=ID and location.state)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const convId = params.get("conversation") || location.state?.conversationId;
+
     if (convId) {
       setSelectedConversationId(convId);
-      const notifications = JSON.parse(localStorage.getItem('skillswap_notifications') || '{}');
-      const conversationNotifications = (notifications.notifications || [])
-        .filter(n => n.conversationId === convId && !n.read)
-        .map(n => n.id);
-      conversationNotifications.forEach(id => markAsRead(id));
+
+      const saved = JSON.parse(
+        localStorage.getItem("skillswap_notifications") || "{}"
+      );
+
+      const ids = (saved.notifications || [])
+        .filter((n) => n.conversationId === convId && !n.read)
+        .map((n) => n.id);
+
+      ids.forEach((id) => markAsRead(id));
     }
-  }, [location.state, markAsRead]);
+  }, [location.search, location.state, markAsRead]);
 
   const selectedConversation = useMemo(
     () => conversations.find((c) => c.id === selectedConversationId),
@@ -71,51 +105,66 @@ function Messages() {
   );
 
   const otherParticipantEmail = useMemo(() => {
-    return (selectedConversation?.participants || []).find((p) => p !== currentUser);
+    return (selectedConversation?.participants || []).find(
+      (p) => (p || "").toLowerCase().trim() !== currentUser
+    );
   }, [selectedConversation, currentUser]);
 
-  // ✅✅✅ UPDATED: Initialize Socket.IO connection
+  const otherParticipantNormalized = useMemo(() => {
+    return (otherParticipantEmail || "").toLowerCase().trim();
+  }, [otherParticipantEmail]);
+
+  const otherDisplayName = useMemo(() => {
+    return (
+      userNames[otherParticipantNormalized] ||
+      otherParticipantNormalized?.split("@")[0] ||
+      "User"
+    );
+  }, [userNames, otherParticipantNormalized]);
+
+  // ✅ Socket.IO receive only (ignore own messages to avoid duplicates)
   useEffect(() => {
     if (!isAuthenticated || !currentUser) {
-      console.log('💬 messages.jsx: Not authenticated, skipping socket');
+      console.log("💬 messages.jsx: Not authenticated, skipping socket subscribe");
       return;
     }
 
-    console.log('💬 messages.jsx: Setting up Socket.IO for', currentUser);
-    socketService.connect(currentUser);
+    const unsubscribe = socketService.subscribe("NEW_MESSAGE", (data) => {
+      console.log("💬 messages.jsx: Received NEW_MESSAGE (Socket.IO):", data);
 
-    // ✅✅✅ Subscribe to NEW_MESSAGE events (Socket.IO format)
-    const unsubscribe = socketService.subscribe('NEW_MESSAGE', (data) => {
-      console.log('💬💬💬 messages.jsx: Received NEW_MESSAGE (Socket.IO):', data);
-      
-      // Socket.IO format: { conversationId: "...", message: { text: "...", from: "...", timestamp: "..." } }
-      if (data.conversationId && data.message) {
-        console.log('💬 Dispatching to Redux:', data.conversationId);
-        dispatch(addIncomingMessage({
-          conversationId: data.conversationId,
-          message: {
-            text: data.message.text,
-            from: data.message.from,
-            timestamp: data.message.timestamp || new Date().toISOString()
-          }
-        }));
+      const from = (data?.message?.from || data?.from || "").toLowerCase().trim();
+
+      // ✅ If backend broadcasts to the sender too, ignore here (REST already added it)
+      if (from && from === currentUser) {
+        console.log("💬 messages.jsx: Ignoring own socket message to avoid duplicates");
+        return;
+      }
+
+      if (data?.conversationId && data?.message) {
+        dispatch(
+          addIncomingMessage({
+            conversationId: data.conversationId,
+            message: {
+              text: data.message.text,
+              from: data.message.from,
+              timestamp: data.message.timestamp || new Date().toISOString(),
+            },
+          })
+        );
       }
     });
 
-    return () => {
-      console.log('💬 messages.jsx: Cleaning up socket subscription');
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [isAuthenticated, currentUser, dispatch]);
 
-  // Send message
+  // ✅ Send message (REST ONLY)
   const handleSendMessage = async () => {
     if (!selectedConversationId || !newMessage.trim() || !selectedConversation) return;
 
-    const to = otherParticipantEmail;
+    const to = otherParticipantNormalized;
     const text = newMessage.trim();
 
-    console.log('💬 Sending message:', { to, text, from: currentUser });
+    console.log("💬 Sending message via REST only:", { to, text, from: currentUser });
 
     try {
       await dispatch(
@@ -128,17 +177,9 @@ function Messages() {
       ).unwrap();
 
       setNewMessage("");
-      
-      // Also send via Socket.IO
-      if (socketService.isConnected()) {
-        console.log('💬 Sending via Socket.IO');
-        socketService.sendMessage({
-          conversationId: selectedConversationId,
-          from: currentUser,
-          to,
-          text,
-        });
-      }
+
+      // ✅ Do NOT also send via Socket.IO
+      // Backend should emit `new_message` after saving REST message.
     } catch (err) {
       console.error("Failed to send message:", err);
       alert("Failed to send message. Please try again.");
@@ -163,9 +204,7 @@ function Messages() {
     <div className="min-h-screen bg-slate-50 p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">Messages</h1>
-        <div className="text-sm text-gray-500">
-          Real-time messaging with Socket.IO
-        </div>
+        <div className="text-sm text-gray-500">{error ? error : ""}</div>
       </div>
 
       {status === "loading" && (
@@ -184,15 +223,26 @@ function Messages() {
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-800">Conversations</h2>
               <p className="text-sm text-gray-500 mt-1">
-                {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
+                {conversations.length} conversation
+                {conversations.length !== 1 ? "s" : ""}
               </p>
             </div>
-            
+
             <div className="max-h-[500px] overflow-y-auto">
               {conversations.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
-                  <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  <svg
+                    className="w-12 h-12 mx-auto text-gray-300 mb-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1}
+                      d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                    />
                   </svg>
                   <p>No conversations yet</p>
                   <p className="text-sm mt-2">Start a conversation from any board!</p>
@@ -200,11 +250,17 @@ function Messages() {
               ) : (
                 <ul>
                   {conversations.map((conv) => {
-                    const otherEmail = (conv?.participants || []).find((p) => p !== currentUser);
-                    const displayName = userNames[otherEmail] || otherEmail?.split('@')[0] || 'Loading...';
+                    const otherEmail = (conv?.participants || []).find(
+                      (p) => (p || "").toLowerCase().trim() !== currentUser
+                    );
+                    const otherKey = (otherEmail || "").toLowerCase().trim();
+
+                    const displayName =
+                      userNames[otherKey] || otherKey?.split("@")[0] || "User";
+
                     const lastMessage = conv.messages?.[conv.messages.length - 1];
                     const isSelected = selectedConversationId === conv.id;
-                    
+
                     return (
                       <li
                         key={conv.id}
@@ -215,10 +271,15 @@ function Messages() {
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <div className="font-medium text-gray-900">{displayName}</div>
+                            <div className="font-medium text-gray-900">
+                              {displayName}
+                            </div>
                             {lastMessage && (
                               <div className="text-sm text-gray-600 truncate mt-1">
-                                {lastMessage.from === currentUser ? "You: " : ""}
+                                {String(lastMessage.from || "").toLowerCase().trim() ===
+                                currentUser
+                                  ? "You: "
+                                  : ""}
                                 {lastMessage.text}
                               </div>
                             )}
@@ -226,11 +287,11 @@ function Messages() {
                         </div>
                         {lastMessage && (
                           <div className="text-xs text-gray-400 mt-2">
-                            {new Date(lastMessage.timestamp).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
+                            {new Date(lastMessage.timestamp).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
                             })}
                           </div>
                         )}
@@ -252,14 +313,17 @@ function Messages() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-bold text-gray-800">
-                      Conversation with {otherParticipantEmail?.split('@')[0] || 'User'}
+                      Conversation with {otherDisplayName}
                     </h2>
-                    <p className="text-sm text-gray-500">{otherParticipantEmail}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${socketService.isConnected() ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        socketService.isConnected() ? "bg-green-500" : "bg-gray-400"
+                      }`}
+                    ></div>
                     <span className="text-xs text-gray-500">
-                      {socketService.isConnected() ? 'Socket.IO Connected' : 'Disconnected'}
+                      {socketService.isConnected() ? "Connected" : "Disconnected"}
                     </span>
                   </div>
                 </div>
@@ -269,8 +333,18 @@ function Messages() {
               <div className="flex-1 p-4 overflow-y-auto max-h-[500px] bg-gray-50">
                 {(selectedConversation.messages || []).length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
-                    <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    <svg
+                      className="w-16 h-16 mx-auto text-gray-300 mb-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1}
+                        d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                      />
                     </svg>
                     <p>No messages yet</p>
                     <p className="text-sm mt-2">Send a message to start the conversation!</p>
@@ -278,26 +352,37 @@ function Messages() {
                 ) : (
                   <div className="space-y-4">
                     {(selectedConversation.messages || []).map((msg) => {
-                      const sender = (msg.from || "").toLowerCase();
+                      const sender = (msg.from || "").toLowerCase().trim();
                       const isMe = sender === currentUser;
-                      const senderName = isMe ? "You" : userNames[sender] || sender.split('@')[0];
-                      const timestamp = new Date(msg.timestamp);
 
-                      const key = msg.id || msg.timestamp || `${msg.from}-${msg.to}-${msg.text}`;
+                      const senderName = isMe
+                        ? "You"
+                        : userNames[sender] || sender.split("@")[0] || "User";
+
+                      const timestamp = new Date(msg.timestamp);
+                      const key =
+                        msg.id || msg.timestamp || `${msg.from}-${msg.to}-${msg.text}`;
 
                       return (
-                        <div key={key} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[70%] ${isMe ? 'order-2' : 'order-1'}`}>
-                            <div className={`rounded-lg p-3 ${isMe ? 'bg-green-100' : 'bg-white border border-gray-200'}`}>
+                        <div
+                          key={key}
+                          className={`flex ${isMe ? "justify-end" : "justify-start"}`}
+                        >
+                          <div className={`max-w-[70%] ${isMe ? "order-2" : "order-1"}`}>
+                            <div
+                              className={`rounded-lg p-3 ${
+                                isMe ? "bg-green-100" : "bg-white border border-gray-200"
+                              }`}
+                            >
                               <div className="font-medium text-sm text-gray-700 mb-1">
                                 {senderName}
                               </div>
                               <p className="text-gray-800">{msg.text}</p>
                               <div className="text-xs text-gray-500 mt-2 text-right">
-                                {timestamp.toLocaleTimeString('en-US', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: true
+                                {timestamp.toLocaleTimeString("en-US", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: true,
                                 })}
                               </div>
                             </div>
@@ -325,27 +410,38 @@ function Messages() {
                     onClick={handleSendMessage}
                     disabled={!newMessage.trim()}
                     className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                      newMessage.trim() 
-                        ? 'bg-green-600 hover:bg-green-700 text-white' 
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      newMessage.trim()
+                        ? "bg-green-600 hover:bg-green-700 text-white"
+                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
                     }`}
                   >
                     Send
                   </button>
                 </div>
-                <div className="text-xs text-gray-500 mt-2">
-                  Press Enter to send 
-                </div>
+                <div className="text-xs text-gray-500 mt-2">Press Enter to send</div>
               </div>
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow p-12 text-center h-full flex flex-col justify-center">
-              <svg className="w-24 h-24 mx-auto text-gray-300 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              <svg
+                className="w-24 h-24 mx-auto text-gray-300 mb-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1}
+                  d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                />
               </svg>
-              <h3 className="text-xl font-medium text-gray-700 mb-2">Select a Conversation</h3>
+              <h3 className="text-xl font-medium text-gray-700 mb-2">
+                Select a Conversation
+              </h3>
               <p className="text-gray-500 max-w-md mx-auto">
-                Choose a conversation to view messages. You can start a new conversation from any board by clicking "Contact" on a skill that has been added.  
+                Choose a conversation to view messages. You can start a conversation
+                from any board by clicking "Contact" on a skill that has been added.
               </p>
             </div>
           )}

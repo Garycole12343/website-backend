@@ -1,11 +1,11 @@
 import React, { useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
-import NotificationBell from "./NotificationBell"; // Import NotificationBell
+import NotificationBell from "./NotificationBell";
 import logo from "../../images/skillsphere-logo.png";
 
 const Header = () => {
-  const { isAuthenticated, userEmail, logout } = useContext(AuthContext);
+  const { isAuthenticated, userEmail, user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -57,11 +57,11 @@ const Header = () => {
 
             {isAuthenticated ? (
               <div className="flex items-center gap-3">
-                {userEmail && (
-                  <span className="text-slate-600 text-sm">
-                    Welcome, {userEmail.split("@")[0]}
-                  </span>
-                )}
+                <span className="text-slate-600 text-sm">
+                  Welcome, {user?.profile?.name || 
+                          `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 
+                          userEmail?.split("@")[0] || 'User'}
+                </span>
                 <button
                   onClick={handleLogout}
                   className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm transition"
