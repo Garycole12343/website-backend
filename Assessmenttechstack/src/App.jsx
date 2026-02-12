@@ -6,7 +6,7 @@ import Header from "./components/navigation/Header";
 import Home from "./pages/Home";
 import Skills from "./pages/skills";
 import ProfilePage from "./pages/profile";
-import Login from "./pages/Login";
+import Login from "./pages/login";
 import Register from "./pages/Register";
 import Contact from "./pages/Contact"; 
 import ProtectedRoute from "./components/ProtectedRoute";
