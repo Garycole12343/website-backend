@@ -18,7 +18,7 @@ import DesignBoard from "./pages/design-board/index.jsx";
 import JavascriptBoard from "./pages/javascript-board/index.jsx";
 import MusicBoard from "./pages/music-board/index.jsx";
 import PhotographyBoard from "./pages/photography-board/index.jsx";
-import ReactBoard from "./pages/react-board/index.jsx";
+import ReactBoard from "./pages/React-board/index.jsx";
 import WritingBoard from "./pages/writing-board/index.jsx";
 import Messages from "./pages/messages";
 
