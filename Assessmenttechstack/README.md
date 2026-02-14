@@ -98,8 +98,70 @@ Home
 │ └─ Saved Resources / Ratings
 └─ Search / Filter
 
-Gantt-style chart placeholder: [Insert image of the project timeline here]
-Site map diagram placeholder: [Insert the Figma or flowchart here]
+Gantt-style chart placeholder: ![alt text](Gantt-style_timeline.png)
+Site map diagram placeholder: ![alt text](sitemap_flowchart.png)
+
+To identify gaps in the current market, SkillSphere was evaluated against existing learning and community platforms that provide partial overlaps in functionality.
+
+| Platform           | Focus              | Strengths                 | Limits                       | Gap |
+
+| Skillshare         | Paid courses       | Curated content           | Subscription, instructor-led | No peer learning |
+| Meetup             | Community events   | Social networking         | Not learning-focused         | No skill structure |
+| Reddit             | Informal sharing   | Large communities         | Low trust, cluttered         | No profiles/moderation |
+| GitHub Discussions | Tech collaboration | Structured tools          | Developer-only               | Not general learning |
+| SkillSphere        | Peer skill sharing | Free, profiles, messaging | Mock data (current)          | Structured peer learning |
+
+
+This analysis demonstrates that SkillSphere addresses a gap between informal community platforms and structured learning systems by enabling peer-driven skill exchange with user profiles and messaging.
+
+The following code excerpt demonstrates consistent naming conventions, clear structure, and purposeful inline commenting, supporting claims of readability and maintainability.
+
+// src/components/SkillCard.jsx
+
+/**
+ * Displays an individual skill or resource card.
+ * @param {Object} skill - Skill data object
+ * @param {string} skill.title - Title of the skill
+ * @param {string} skill.description - Short description
+ */
+function SkillCard({ skill }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Toggles visibility of additional skill information
+  const handleToggleDetails = () => {
+    setIsExpanded(!isExpanded);
+  };
+
+  return (
+    <div className="p-4 border rounded-lg">
+      <h3 className="text-lg font-semibold">{skill.title}</h3>
+      <p>{skill.description}</p>
+
+      {isExpanded && (
+        <p className="text-sm text-gray-600">
+          Additional information displayed conditionally.
+        </p>
+      )}
+
+      <button onClick={handleToggleDetails}>
+        {isExpanded ? "Hide details" : "Show details"}
+      </button>
+    </div>
+  );
+}
+
+export default SkillCard;
+
+
+This example illustrates:
+
+Descriptive camelCase naming
+
+Clear function responsibilities
+
+Comments explaining intent rather than syntax
+
+Readable component structure aligned with React best practices
 
 AI Usage Declaration
 
