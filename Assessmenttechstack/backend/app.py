@@ -65,6 +65,7 @@ resources_col = db["resources"]
 conversations = db["conversations"]
 contacts = db["contacts"]
 user_embeddings = db["user_embeddings"]  # New collection for storing embeddings
+reviews = db["reviews"]  # NEW: Reviews collection
 
 try:
     users.create_index([("email", ASCENDING)], unique=True)
@@ -73,6 +74,8 @@ try:
     conversations.create_index([("updated_at", DESCENDING)])
     user_embeddings.create_index([("email", ASCENDING)], unique=True)  # Index for embeddings
     user_embeddings.create_index([("embedding", "2dsphere")])  # For similarity search
+    reviews.create_index([("userEmail", ASCENDING)])  # NEW: Index for reviews
+    reviews.create_index([("createdAt", DESCENDING)])  # NEW: Index for sorting reviews
 except Exception as e:
     print("⚠️ Index creation warning:", repr(e))
 
@@ -302,6 +305,15 @@ def _serialize_conversation(conv_doc: Dict[str, Any]) -> Dict[str, Any]:
         safe_msgs.append(mm)
     c["messages"] = safe_msgs
     return c
+
+
+# NEW: Review serializer
+def _serialize_review(doc: Dict[str, Any]) -> Dict[str, Any]:
+    d = dict(doc)
+    oid = d.pop("_id", None)
+    d["id"] = str(oid) if oid else d.get("id")
+    d["createdAt"] = _iso(d.get("createdAt"))
+    return d
 
 
 # =============================================================================
@@ -571,6 +583,74 @@ def profile():
     generate_and_store_embedding(updated_user)
 
     return jsonify({"message": "Profile saved"}), 200
+
+
+# =============================================================================
+# NEW: Reviews Routes
+# =============================================================================
+@app.route("/api/reviews", methods=["GET", "POST"])
+def handle_reviews():
+    if request.method == "GET":
+        # Get reviews for a specific user
+        user_email = _normalize_email(request.args.get("userEmail") or "")
+        if not user_email:
+            return jsonify({"message": "userEmail is required"}), 400
+        
+        try:
+            review_docs = list(reviews.find({"userEmail": user_email}).sort("createdAt", DESCENDING))
+            return jsonify({"reviews": [_serialize_review(r) for r in review_docs]}), 200
+        except Exception as e:
+            print(f"❌ Error fetching reviews: {repr(e)}")
+            return jsonify({"message": "Failed to fetch reviews"}), 500
+    
+    # POST - Create a new review
+    data = _require_json()
+    user_email = _normalize_email(data.get("userEmail") or "")
+    author = data.get("author", "").strip()
+    content = data.get("content", "").strip()
+    rating = data.get("rating", 5)
+    
+    if not user_email or not author or not content:
+        return jsonify({"message": "userEmail, author, and content are required"}), 400
+    
+    if not isinstance(rating, int) or rating < 1 or rating > 5:
+        return jsonify({"message": "rating must be an integer between 1 and 5"}), 400
+    
+    try:
+        review_doc = {
+            "userEmail": user_email,
+            "author": author,
+            "content": content,
+            "rating": rating,
+            "createdAt": datetime.now(UTC)
+        }
+        
+        result = reviews.insert_one(review_doc)
+        review_doc["_id"] = result.inserted_id
+        
+        return jsonify(_serialize_review(review_doc)), 201
+        
+    except Exception as e:
+        print(f"❌ Error creating review: {repr(e)}")
+        return jsonify({"message": "Failed to create review"}), 500
+
+
+# Optional: Delete a review
+@app.delete("/api/reviews/<review_id>")
+def delete_review(review_id):
+    try:
+        oid = _safe_object_id(review_id)
+        if not oid:
+            return jsonify({"message": "Invalid review ID"}), 400
+        
+        result = reviews.delete_one({"_id": oid})
+        if result.deleted_count == 0:
+            return jsonify({"message": "Review not found"}), 404
+        
+        return jsonify({"message": "Review deleted successfully"}), 200
+    except Exception as e:
+        print(f"❌ Error deleting review: {repr(e)}")
+        return jsonify({"message": "Failed to delete review"}), 500
 
 
 # =============================================================================

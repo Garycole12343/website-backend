@@ -24,9 +24,51 @@ const ProfilePage = () => {
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState("");
   const [reviews, setReviews] = useState([]);
+  const [isReviewsLoading, setIsReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState("");
   const [formData, setFormData] = useState({ author: "", content: "", rating: 5 });
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [messageText, setMessageText] = useState("");
+
+  // Calculate average rating
+  const calculateAverageRating = () => {
+    if (reviews.length === 0) return 0;
+    const sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+    return (sum / reviews.length).toFixed(1);
+  };
+
+  // Get rating distribution
+  const getRatingDistribution = () => {
+    const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    reviews.forEach(review => {
+      distribution[review.rating] = (distribution[review.rating] || 0) + 1;
+    });
+    return distribution;
+  };
+
+  const averageRating = calculateAverageRating();
+  const ratingDistribution = getRatingDistribution();
+  const totalReviews = reviews.length;
+
+  // Render stars for average display
+  const renderAverageStars = (rating) => {
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+    
+    return (
+      <div className="flex items-center">
+        {[...Array(5)].map((_, i) => {
+          if (i < fullStars) {
+            return <span key={i} className="text-yellow-400 text-lg">★</span>;
+          } else if (i === fullStars && hasHalfStar) {
+            return <span key={i} className="text-yellow-400 text-lg">⯨</span>; // Half star character
+          } else {
+            return <span key={i} className="text-gray-300 text-lg">★</span>;
+          }
+        })}
+      </div>
+    );
+  };
 
   // Load profile on mount/login
   useEffect(() => {
@@ -45,6 +87,9 @@ const ProfilePage = () => {
         setProfile(loaded);
         setSavedProfile(loaded);
         console.log('✅ Profile loaded:', loaded);
+        
+        // Load reviews after profile is loaded
+        await loadReviews(userEmail);
       } catch (err) {
         console.error('Profile load error:', err);
         setProfileError('Failed to load profile');
@@ -55,15 +100,25 @@ const ProfilePage = () => {
     loadProfile();
   }, [isAuthenticated, userEmail]);
 
-  // Reviews localStorage
-  const getReviewsKey = () => userEmail ? `${userEmail.replace(/[@.]/g, '_')}_reviews` : 'guest_reviews';
-  useEffect(() => {
-    const saved = localStorage.getItem(getReviewsKey());
-    if (saved) setReviews(JSON.parse(saved));
-  }, []);
-  useEffect(() => {
-    if (reviews.length) localStorage.setItem(getReviewsKey(), JSON.stringify(reviews));
-  }, [reviews]);
+  // Load reviews from MongoDB
+  const loadReviews = async (email) => {
+    if (!email) return;
+    
+    setIsReviewsLoading(true);
+    setReviewsError("");
+    
+    try {
+      const res = await fetch(`/api/reviews?userEmail=${encodeURIComponent(email)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setReviews(data.reviews || []);
+    } catch (err) {
+      console.error('Error loading reviews:', err);
+      setReviewsError('Failed to load reviews');
+    } finally {
+      setIsReviewsLoading(false);
+    }
+  };
 
   const isProfileEmpty = !profile.name && !profile.skills && !profile.qualifications;
 
@@ -104,17 +159,47 @@ const ProfilePage = () => {
     setProfileError('');
   };
 
-  // Reviews
-  const handleReviewSubmit = (e) => {
+  // Reviews - Submit to MongoDB
+  const handleReviewSubmit = async (e) => {
     e.preventDefault();
     if (!formData.author.trim() || !formData.content.trim()) return;
-    const newReview = { ...formData, id: Date.now(), date: new Date().toLocaleDateString() };
-    setReviews([newReview, ...reviews]);
-    setFormData({ author: "", content: "", rating: 5 });
+
+    setIsReviewsLoading(true);
+    setReviewsError("");
+
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userEmail: userEmail, // The profile owner
+          author: formData.author,
+          content: formData.content,
+          rating: formData.rating
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to save review');
+
+      const newReview = await res.json();
+      setReviews([newReview, ...reviews]);
+      setFormData({ author: "", content: "", rating: 5 });
+      
+    } catch (err) {
+      console.error('Error saving review:', err);
+      setReviewsError('Failed to save review');
+    } finally {
+      setIsReviewsLoading(false);
+    }
   };
 
   const renderStars = (rating) => Array(5).fill().map((_, i) => (
-    <button key={i} onClick={() => setFormData({ ...formData, rating: i + 1 })} className={i < formData.rating ? 'text-yellow-400 text-xl' : 'text-gray-300 text-xl'}>
+    <button 
+      key={i} 
+      onClick={() => setFormData({ ...formData, rating: i + 1 })} 
+      className={i < formData.rating ? 'text-yellow-400 text-xl' : 'text-gray-300 text-xl'}
+      type="button"
+    >
       ★
     </button>
   ));
@@ -143,9 +228,9 @@ const ProfilePage = () => {
         </div>
       </div>
 
-      {profileError && (
+      {(profileError || reviewsError) && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          {profileError}
+          {profileError || reviewsError}
         </div>
       )}
 
@@ -155,22 +240,59 @@ const ProfilePage = () => {
         <>
           {/* Profile Card */}
           <section className="bg-white shadow-lg rounded-2xl p-8 mb-8">
-            <div className="flex flex-col md:flex-row gap-8 items-center">
-              <div className="relative">
-                {profile.image ? (
-                  <img src={profile.image} alt="Profile" className="w-32 h-32 md:w-40 md:h-40 rounded-full object-cover ring-4 ring-gray-100" />
-                ) : (
-                  <div className="w-32 h-32 md:w-40 md:h-40 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-xl">
-                    {profile.name.charAt(0) || 'U'}
+            <div className="flex flex-col md:flex-row gap-8">
+              {/* Left column - Profile image and rating */}
+              <div className="flex flex-col items-center">
+                <div className="relative">
+                  {profile.image ? (
+                    <img src={profile.image} alt="Profile" className="w-32 h-32 md:w-40 md:h-40 rounded-full object-cover ring-4 ring-gray-100" />
+                  ) : (
+                    <div className="w-32 h-32 md:w-40 md:h-40 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-xl">
+                      {profile.name.charAt(0) || 'U'}
+                    </div>
+                  )}
+                  {isEditing && (
+                    <Button onClick={() => fileInputRef.current?.click()} size="sm" className="absolute -bottom-2 -right-2 bg-white p-2 rounded-full shadow-lg">
+                      📷
+                    </Button>
+                  )}
+                </div>
+                
+                {/* Average Rating Display - NEW */}
+                {!isEditing && totalReviews > 0 && (
+                  <div className="mt-4 text-center">
+                    <div className="flex items-center justify-center space-x-1">
+                      {renderAverageStars(averageRating)}
+                      <span className="ml-2 font-bold text-lg">{averageRating}</span>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {totalReviews} {totalReviews === 1 ? 'review' : 'reviews'}
+                    </div>
+                    
+                    {/* Rating Distribution - Optional */}
+                    <div className="mt-3 text-left text-sm w-48">
+                      {[5,4,3,2,1].map(rating => (
+                        <div key={rating} className="flex items-center gap-2">
+                          <span className="w-3">{rating}★</span>
+                          <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-yellow-400"
+                              style={{ 
+                                width: `${(ratingDistribution[rating] / totalReviews) * 100}%` 
+                              }}
+                            />
+                          </div>
+                          <span className="text-gray-500 text-xs w-8">
+                            {ratingDistribution[rating]}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                )}
-                {isEditing && (
-                  <Button onClick={() => fileInputRef.current?.click()} size="sm" className="absolute -bottom-2 -right-2 bg-white p-2 rounded-full shadow-lg">
-                    📷
-                  </Button>
                 )}
               </div>
 
+              {/* Right column - Profile info */}
               <div className="flex-1 min-w-0">
                 {isEditing ? (
                   <input
@@ -233,25 +355,52 @@ const ProfilePage = () => {
             </div>
           </section>
 
-          {/* Reviews */}
+          {/* Reviews Section */}
           <section className="bg-white shadow-lg rounded-2xl p-8">
             <h3 className="text-2xl font-bold mb-6">Reviews ({reviews.length})</h3>
+            
             <form onSubmit={handleReviewSubmit} className="bg-gray-50 p-6 rounded-xl mb-8 space-y-4">
-              <input name="author" value={formData.author} onChange={(e) => setFormData({...formData, author: e.target.value})} 
-                placeholder="Your name" className="w-full p-3 border rounded-lg" required />
-              <textarea name="content" value={formData.content} onChange={(e) => setFormData({...formData, content: e.target.value})} 
-                placeholder="Your review" className="w-full p-3 border rounded-lg" rows={3} required />
-              <div className="flex items-center space-x-1">{renderStars()}</div>
-              <Button type="submit" variant="default">Add Review</Button>
+              <input 
+                name="author" 
+                value={formData.author} 
+                onChange={(e) => setFormData({...formData, author: e.target.value})} 
+                placeholder="Your name" 
+                className="w-full p-3 border rounded-lg" 
+                required 
+              />
+              <textarea 
+                name="content" 
+                value={formData.content} 
+                onChange={(e) => setFormData({...formData, content: e.target.value})} 
+                placeholder="Your review" 
+                className="w-full p-3 border rounded-lg" 
+                rows={3} 
+                required 
+              />
+              <div className="flex items-center space-x-1">
+                {renderStars()}
+              </div>
+              <Button type="submit" variant="default" disabled={isReviewsLoading}>
+                {isReviewsLoading ? 'Saving...' : 'Add Review'}
+              </Button>
             </form>
-            {reviews.length ? (
+            
+            {isReviewsLoading && reviews.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">Loading reviews...</div>
+            ) : reviews.length > 0 ? (
               reviews.map((review) => (
-                <div key={review.id} className="border-b pb-6 mb-6 last:border-b-0">
+                <div key={review._id || review.id} className="border-b pb-6 mb-6 last:border-b-0">
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="font-semibold">{review.author}</h4>
-                    <span className="text-sm text-gray-500">{review.date}</span>
+                    <span className="text-sm text-gray-500">
+                      {new Date(review.createdAt || review.date).toLocaleDateString()}
+                    </span>
                   </div>
-                  <div className="mb-2">{Array(review.rating).fill().map((_, i) => <span key={i} className="text-yellow-400">★</span>)}</div>
+                  <div className="mb-2">
+                    {Array(review.rating).fill().map((_, i) => (
+                      <span key={i} className="text-yellow-400">★</span>
+                    ))}
+                  </div>
                   <p>{review.content}</p>
                 </div>
               ))
