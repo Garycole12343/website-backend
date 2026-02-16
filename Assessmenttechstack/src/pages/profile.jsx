@@ -54,7 +54,7 @@ const ProfilePage = () => {
   const renderAverageStars = (rating) => {
     const fullStars = Math.floor(rating);
     const hasHalfStar = rating % 1 >= 0.5;
-    
+
     return (
       <div className="flex items-center">
         {[...Array(5)].map((_, i) => {
@@ -87,7 +87,7 @@ const ProfilePage = () => {
         setProfile(loaded);
         setSavedProfile(loaded);
         console.log('✅ Profile loaded:', loaded);
-        
+
         // Load reviews after profile is loaded
         await loadReviews(userEmail);
       } catch (err) {
@@ -103,10 +103,10 @@ const ProfilePage = () => {
   // Load reviews from MongoDB
   const loadReviews = async (email) => {
     if (!email) return;
-    
+
     setIsReviewsLoading(true);
     setReviewsError("");
-    
+
     try {
       const res = await fetch(`/api/reviews?userEmail=${encodeURIComponent(email)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -184,7 +184,7 @@ const ProfilePage = () => {
       const newReview = await res.json();
       setReviews([newReview, ...reviews]);
       setFormData({ author: "", content: "", rating: 5 });
-      
+
     } catch (err) {
       console.error('Error saving review:', err);
       setReviewsError('Failed to save review');
@@ -194,9 +194,9 @@ const ProfilePage = () => {
   };
 
   const renderStars = (rating) => Array(5).fill().map((_, i) => (
-    <button 
-      key={i} 
-      onClick={() => setFormData({ ...formData, rating: i + 1 })} 
+    <button
+      key={i}
+      onClick={() => setFormData({ ...formData, rating: i + 1 })}
       className={i < formData.rating ? 'text-yellow-400 text-xl' : 'text-gray-300 text-xl'}
       type="button"
     >
@@ -257,7 +257,7 @@ const ProfilePage = () => {
                     </Button>
                   )}
                 </div>
-                
+
                 {/* Average Rating Display - NEW */}
                 {!isEditing && totalReviews > 0 && (
                   <div className="mt-4 text-center">
@@ -268,17 +268,17 @@ const ProfilePage = () => {
                     <div className="text-sm text-gray-500">
                       {totalReviews} {totalReviews === 1 ? 'review' : 'reviews'}
                     </div>
-                    
+
                     {/* Rating Distribution - Optional */}
                     <div className="mt-3 text-left text-sm w-48">
-                      {[5,4,3,2,1].map(rating => (
+                      {[5, 4, 3, 2, 1].map(rating => (
                         <div key={rating} className="flex items-center gap-2">
                           <span className="w-3">{rating}★</span>
                           <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div 
+                            <div
                               className="h-full bg-yellow-400"
-                              style={{ 
-                                width: `${(ratingDistribution[rating] / totalReviews) * 100}%` 
+                              style={{
+                                width: `${(ratingDistribution[rating] / totalReviews) * 100}%`
                               }}
                             />
                           </div>
@@ -305,7 +305,7 @@ const ProfilePage = () => {
                 ) : (
                   <h2 className="text-3xl font-bold mb-2">{profile.name || 'No name set'}</h2>
                 )}
-                
+
                 {isEditing ? (
                   <div className="grid grid-cols-2 gap-4 text-sm mb-6">
                     <input name="age" value={profile.age} onChange={handleProfileChange} placeholder="Age" className="p-2 border rounded-lg" />
@@ -320,9 +320,9 @@ const ProfilePage = () => {
 
                 {isEditing ? (
                   <>
-                    <textarea name="skills" value={profile.skills} onChange={handleProfileChange} placeholder="Skills (one per line)" 
+                    <textarea name="skills" value={profile.skills} onChange={handleProfileChange} placeholder="Skills (one per line)"
                       className="w-full p-4 border rounded-xl mb-4" rows={3} />
-                    <textarea name="qualifications" value={profile.qualifications} onChange={handleProfileChange} placeholder="Qualifications" 
+                    <textarea name="qualifications" value={profile.qualifications} onChange={handleProfileChange} placeholder="Qualifications"
                       className="w-full p-4 border rounded-xl" rows={3} />
                   </>
                 ) : (
@@ -358,24 +358,24 @@ const ProfilePage = () => {
           {/* Reviews Section */}
           <section className="bg-white shadow-lg rounded-2xl p-8">
             <h3 className="text-2xl font-bold mb-6">Reviews ({reviews.length})</h3>
-            
+
             <form onSubmit={handleReviewSubmit} className="bg-gray-50 p-6 rounded-xl mb-8 space-y-4">
-              <input 
-                name="author" 
-                value={formData.author} 
-                onChange={(e) => setFormData({...formData, author: e.target.value})} 
-                placeholder="Your name" 
-                className="w-full p-3 border rounded-lg" 
-                required 
+              <input
+                name="author"
+                value={formData.author}
+                onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+                placeholder="Your name"
+                className="w-full p-3 border rounded-lg"
+                required
               />
-              <textarea 
-                name="content" 
-                value={formData.content} 
-                onChange={(e) => setFormData({...formData, content: e.target.value})} 
-                placeholder="Your review" 
-                className="w-full p-3 border rounded-lg" 
-                rows={3} 
-                required 
+              <textarea
+                name="content"
+                value={formData.content}
+                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                placeholder="Your review"
+                className="w-full p-3 border rounded-lg"
+                rows={3}
+                required
               />
               <div className="flex items-center space-x-1">
                 {renderStars()}
@@ -384,7 +384,7 @@ const ProfilePage = () => {
                 {isReviewsLoading ? 'Saving...' : 'Add Review'}
               </Button>
             </form>
-            
+
             {isReviewsLoading && reviews.length === 0 ? (
               <div className="text-center py-12 text-gray-500">Loading reviews...</div>
             ) : reviews.length > 0 ? (
@@ -418,7 +418,7 @@ const ProfilePage = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowMessageModal(false)}>
           <div className="bg-white p-8 rounded-2xl max-w-md w-full max-h-[80vh] overflow-auto" onClick={e => e.stopPropagation()}>
             <h3 className="text-2xl font-bold mb-6">Send Message</h3>
-            <textarea value={messageText} onChange={e => setMessageText(e.target.value)} 
+            <textarea value={messageText} onChange={e => setMessageText(e.target.value)}
               placeholder="Type your message..." className="w-full p-4 border rounded-xl mb-6 resize-none" rows={5} />
             <div className="flex justify-end space-x-3">
               <Button variant="outline" onClick={() => setShowMessageModal(false)}>Cancel</Button>
