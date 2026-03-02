@@ -1,9 +1,71 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import logo from "../../images/skillsphere-logo.png"; // adjust the path if needed
-
+import React, { useState, useEffect, useContext } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { AuthContext } from "../../context/AuthContext";
+import { createConversation } from "../../store/slices/messagesSlice";
+import logo from "../../images/skillsphere-logo.png"; 
 function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { userEmail, isAuthenticated } = useContext(AuthContext);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  const [mentors, setMentors] = useState([]);
+  const [loadingMentors, setLoadingMentors] = useState(false);
+
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      if (!isAuthenticated || !userEmail) return;
+
+      setLoadingMentors(true);
+      try {
+        const res = await fetch(`/api/users/recommendations?email=${encodeURIComponent(userEmail)}&limit=3`);
+        if (res.ok) {
+          const data = await res.json();
+          
+          
+          if (data.similar_users?.length === 0) {
+             console.log("No mentors found, triggering embedding update for self...");
+             await fetch('/api/users/update-embedding', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: userEmail })
+             });
+             
+             const retryRes = await fetch(`/api/users/recommendations?email=${encodeURIComponent(userEmail)}&limit=3`);
+             if (retryRes.ok) {
+                const retryData = await retryRes.json();
+                setMentors(retryData.similar_users || []);
+             }
+          } else {
+            setMentors(data.similar_users || []);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch recommendations:", error);
+      } finally {
+        setLoadingMentors(false);
+      }
+    };
+
+    fetchRecommendations();
+  }, [isAuthenticated, userEmail]);
+
+  const handleConnect = async (mentorEmail, mentorName) => {
+    if (!userEmail) return;
+    
+    try {
+      const resultAction = await dispatch(createConversation({ 
+        participants: [userEmail, mentorEmail] 
+      }));
+      
+      if (createConversation.fulfilled.match(resultAction)) {
+        navigate("/messages", { state: { conversationId: resultAction.payload.id } });
+      }
+    } catch (error) {
+      console.error("Failed to connect:", error);
+    }
+  };
 
   const boards = [
     {
@@ -179,7 +241,7 @@ function Home() {
       </nav>
 
       {/* Hero Section */}
-      <div className="max-w-5xl mx-auto text-center">
+      <div className="max-w-5xl mx-auto text-center mb-16">
         <h1 className="text-6xl font-extrabold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-600 tracking-tight">
           Welcome to the SkillSphere
         </h1>
@@ -188,8 +250,72 @@ function Home() {
         </p>
       </div>
 
+      {/* Suggested Mentors Section - AI Powered */}
+      {isAuthenticated && mentors.length > 0 && (
+        <div className="max-w-6xl mx-auto mb-20">
+          <div className="flex items-center justify-center mb-8 space-x-3">
+            <span className="text-2xl">✨</span>
+            <h2 className="text-3xl font-bold text-gray-900">Suggested For You</h2>
+            
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {mentors.map((match, index) => {
+              const user = match.user;
+              const score = Math.round(match.similarity_score * 100);
+              
+              return (
+                <div key={user.id || index} className="bg-white/80 backdrop-blur-md p-6 rounded-xl shadow-lg border border-purple-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-lg">
+                        {user.firstName?.[0] || user.email?.[0] || "U"}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-900">{user.firstName} {user.lastName}</h3>
+                        <p className="text-xs text-gray-500 capitalize">{user.skillLevel || "Member"}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-lg font-bold text-green-600">{score}%</span>
+                      <span className="text-xs text-gray-400">Match</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mb-6">
+                    <p className="text-sm text-gray-600 line-clamp-2">
+                      {user.profile?.bio || `Interested in ${Array.isArray(user.interests) ? user.interests.join(", ") : (user.interests || "learning")}...`}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(typeof user.profile?.skills === 'string' 
+                        ? user.profile.skills.split('\n') 
+                        : (Array.isArray(user.profile?.skills) ? user.profile.skills : [])
+                      ).filter(Boolean).slice(0, 3).map((skill, i) => (
+                        <span key={i} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-md">
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleConnect(user.email, user.firstName)}
+                    className="w-full py-2 bg-white border-2 border-purple-600 text-purple-600 font-semibold rounded-lg hover:bg-purple-600 hover:text-white transition-colors duration-200 flex items-center justify-center space-x-2"
+                  >
+                    <span>Connect</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Features Grid */}
-      <div className="max-w-6xl mx-auto mt-20">
+      <div className="max-w-6xl mx-auto mt-10">
         <h2 className="text-4xl font-bold text-center text-gray-900 mb-12">Explore Our Community Boards</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -59,6 +59,25 @@ export const sendMessage = createAsyncThunk(
   }
 );
 
+// Mark conversation as read
+export const markConversationRead = createAsyncThunk(
+  "messages/markRead",
+  async ({ conversationId, email }, { rejectWithValue }) => {
+    try {
+      const res = await fetch("/api/messages/mark-read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId, email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return rejectWithValue(data.message || "Failed to mark as read");
+      return { conversationId, email, timestamp: new Date().toISOString() };
+    } catch (err) {
+      return rejectWithValue(err?.message || "Network error");
+    }
+  }
+);
+
 // ---- helpers ----
 function ensureConvShape(conv) {
   if (!conv) return conv;
@@ -182,6 +201,16 @@ const messagesSlice = createSlice({
       })
       .addCase(sendMessage.rejected, (state, action) => {
         state.error = action.payload || "Failed to send message";
+      })
+      
+      // markConversationRead
+      .addCase(markConversationRead.fulfilled, (state, action) => {
+        const { conversationId, email, timestamp } = action.payload;
+        const conv = state.conversations.find(c => c.id === conversationId);
+        if (conv) {
+          if (!conv.last_read_by) conv.last_read_by = {};
+          conv.last_read_by[email] = timestamp;
+        }
       });
   },
 });

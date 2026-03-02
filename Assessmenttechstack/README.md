@@ -1,173 +1,179 @@
-SkillSphere README. Module Information  
-Module Code: COM4113  
-Module Title: Tech Stack  
-Institution: Leeds Trinity University
+# SkillSphere README
 
-Project Overview  
-SkillSphere is a website providing individuals with sharing skills and information to allow them to learn together. Guests browse the platform without needing to register, and if you sign up, you unlock new features, such as personalized profiles and messaging. Building it, SkillSphere proves the ways for building a scalable simple and sustainable front-end using these web development tools. Since there is currently no backend, we perform UI (User Interface) and interact on users based on simulated data. These features include displaying user flows on display, rapid responsive design, user-friendly navigation, and conditional access to the applications using users’ authentication credentials. In the future backend services, authentication servers and databases are also planned.
+## Module Information
+- **Module Code:** COM4113
+- **Module Title:** Tech Stack
+- **Institution:** Leeds Trinity University
 
-The Choice of Tech Stack  
-React vs Other Frameworks  
-React appeals to us for its close-knit community, small, modular design, component-oriented approach, and its potential for building reusable and extensible components (DigitalOcean, 2025). Other frameworks considered:  
-Vue.js: Use it to create your apps with minimal learning curve. Svelte: Compiles to simple JavaScript which is faster and smaller. Angular: Great for a very large codebase; complicated but powerful. SolidJS/Qwik: Fast & low cost short and very efficient app frameworks. React sits somewhere between speed, maintainability and community support.
+## Project Overview
+SkillSphere is a full-stack web application designed to facilitate skill and information sharing within a community. It allows users to browse resources, register for an account, manage a personal profile, and interact with other users and content.
 
-Vite vs Other Build Tools  
-We chose Vite because it is easy and fast to set up (TatvaSoft Blog, 2024). Other tools considered:  
-Webpack: More powerful but slower to set up, run or configure. Turbopack: New one, also good for building large apps, but less mature. Parcel: Very basic but a lack of plugin and community support.
+This project demonstrates a complete MERN-like stack (MongoDB, Express/Flask, React, Node.js), integrating a responsive React frontend with a robust Python Flask backend. The application handles user authentication, data persistence, and real-time interactions, showcasing a scalable and maintainable architecture.
 
-Tailwind CSS vs Other CSS Frameworks  
-Tailwind CSS – Consistent CSS styling, versatility, and adaptability (Mike Codeur, 2024). Other frameworks explored:  
-Bootstrap: More restrictive than the normal CSS, where only things that have been compiled are to be used. Windi CSS - Similar to Tailwind, but much faster and easier to compile. Materialize CSS/Bulma: Pre-packaged assets that are unsuited for dynamic builds. We have React Router for routing, this means that our users can move up and down between pages in a matter of seconds.
+## The Choice of Tech Stack
 
-Server-Side Ideas  
-SkillSphere, which is an app that you are going to create on the front-end, is now advisable for server-side programming. Because we have sign-up of users, data persisted, then content moderation, a well-architected backend is necessary. For example, we might implement MongoDB and a RESTful API to enable dynamic storage of content from user generated documents, and user personal profiles & messages – and sharing resources. Key considerations include:
+### Frontend
+-   **React:** Chosen for its component-based architecture, which promotes reusability and maintainability. Its vast ecosystem and strong community support make it an industry standard for building dynamic user interfaces.
+-   **Vite:** Selected as the build tool for its exceptional speed and developer-friendly experience, offering near-instant Hot Module Replacement (HMR).
+-   **Tailwind CSS:** Used for its utility-first approach, allowing for rapid and consistent UI development without leaving the HTML.
 
-Conduct safe handling of privacy sensitive personal information (hashed passwords, sensitive user information, like hashed passwords and secrets). Input validation on data integrity and error handling and fault tolerance. We were able to get better performance through caching and fast database queries. Server side logging and performance measurement to spot and correct problems before they escalate. Additionally, we will help you plan ahead for building a secure, maintainable, and scalable backend that is available and easy to implement later on (DigitalOcean, 2025; DEV Community, 2024).
+### Backend
+-   **Flask:** This Python micro-framework was chosen for its simplicity, flexibility, and lightweight nature. Compared to a more opinionated framework like Django, Flask provides the freedom to select libraries and design the application structure from the ground up, which was ideal for this project's specific scope. Its "micro" nature does not limit its capabilities but rather provides a solid foundation that is easy to extend, as demonstrated by the integration of libraries for database access, authentication, and real-time communication.
+-   **MongoDB:** A NoSQL database selected for its flexible, document-based data model. This allows for easy storage and retrieval of semi-structured data like user profiles and resources, which can evolve without requiring rigid schema migrations.
 
-Server-Side Framework  
-Node.js with Express: A simple, JavaScript-powered backend with React front end support. Django: It is a framework written in structured Python. It has an automated user authentication and automated admin for database management. Firebase: Backend cloud + real-time database orchestration, easy to manage: more manageable components, less customised parts of information processing. Node.js/Express - some combination is chosen because it is adaptable and useful to the community; it obviously comes with a lot of work since we know it doesn't help you do a lot of your job.
+## Installation and Setup
+To run this project locally, you will need to set up the frontend and backend services separately.
 
-Development Standards and Versioning Standard  
-Git and GitHub versioning were deployed. This helped us identify the right-and-wrong solution, make sure our project was finished in time with good quality assurance. We performed a reliability check to discover whether or not there are missing features and bugs. The confidence in rollback capability is maintained, so the project could be delivered on time (GitLab, 2025; Zemith, 2025; Nerdify Blog, 2025) and the project release timelines maintained in good condition.
+### Frontend Setup
+1.  Navigate to the root directory and open a terminal (like PowerShell).
+2.  Install the required Node.js dependencies:
+    ```powershell
+    npm install
+    ```
+3.  Start the Vite development server:
+    ```powershell
+    npm run dev
+    ```
+4.  The frontend will be available at the local address displayed in your terminal (usually `http://localhost:5173`).
 
-Installation Instructions  
-According to npm install dependencies as per npm install. With npm run dev for new command line to get started on dev server. Check your terminal open the local address in the browsers. Typical Issue: Non-compatible Node.js versions could lead to errors. This will also necessitate the refresh of our version of the new LTS.
+### Backend Setup
+1.  Navigate to the `backend` directory:
+    ```powershell
+    cd backend
+    ```
+2.  Create and activate a Python virtual environment. The command below is for PowerShell on Windows:
+    ```powershell
+    python -m venv venv
+    .\\venv\\Scripts\\activate
+    ```
+3.  Install the required Python packages from `requirements.txt`:
+    ```powershell
+    pip install -r requirements.txt
+    ```
+4.  Create a `.env` file in the `backend` directory. This step is recommended for securely managing credentials. While the application has a default MongoDB connection string, you can override it here. You also need to add your Voyage AI API key.
+    ```
+    # Optional: Override the default MongoDB connection string
+    # MONGO_URI="your_mongodb_connection_string_here"
 
-Project Plan and Timeline  
-Development was a nine-week iterative process:  
-1) Phase 1: Needs analysis, tech review and design phase for the user experience.  
-Phase 2: Environment Design using Vite and React; Initial phase of layout and navigation.  
-Phase 3: Feature design on mock data and profiles and communication as conditional views.  
-Phase 4: Stylization, usability, re-specification and re-design of documentation and testing on mobile/desktop devices were conducted.  
-Gantt style chart: (src/images/Gantt-style_timeline.png).
+    # Required for AI features
+    VOYAGE_API_KEY="your_voyage_ai_api_key_here"
+    ```
+5.  Start the Flask development server:
+    ```powershell
+    python app.py
+    ```
+6.  The backend API will be running on `http://127.0.0.1:5000`.
 
-User Journey of Interaction  
-The guests can browse knowledge, skills and resources whenever they want without the need to sign up. Users log in or sign in, then interact with tools, like their profiles and messaging — there is a sign-up button at the top right. The site is a convenience platform and it’s not currently allowing those who have not signed up, but it will. E. LEGAL, ETHICAL AND RISKS PRACTICES THINKING. GDPR, Data protection: Compliance with GDPR is planned for the future. We must collect user data with explicit consent, clear privacy-based principles, and it will be confidential for a while (AuditBoard, 2025; European Commission, 2025; GDPR Local, 2025). Ethical tradeoff: Open browsing increases user access but without means to moderate content makes usage an ideal environment for abuse, and decreases users trust (inappropriate or deceptive content) and hence lack of moderation. To address the risk, we will develop reporting and moderation policies that will be followed up on in future releases. Risk Assessment. Current risks include:
+## Project Architecture
 
-No ongoing data storage. No server-side validation. Reliance on mock data. Backend integration with secure APIs, authentication and database support will make sure that this risk is eliminated. Good Software Attributes. Keepability: components in React are modular. Readability: Same naming codes for all names. Usability: A simple simple GUI on the web. Efficiency: Tuning for the now and next
+### Database Schema
+The application uses MongoDB to persist data across several collections:
 
-Real-World Applications. SkillSphere can be found in Community Education sites
+-   **`users`**: Stores user information, including profile data, credentials, and interests.
+-   **`resources`**: Stores learning resources, which can be liked and categorized.
+-   **`conversations`**: Stores messages between users.
+-   **`contacts`**: Stores user's contacts.
+-   **`user_embeddings`**: Stores Voyage AI embeddings for user profiles to enable similarity searches.
+-   **`reviews`**: Stores reviews and ratings that users give to each other.
+-   **`skills_pages`**: Stores information about skill pages.
+-   **`skills_embeddings`**: Stores Voyage AI embeddings for skills pages.
 
-Hobbyist Networks and Peer Learning
+### Database Diagram
 
-SkillSphere also targets informal professional skill-sharing communities, enabling users to connect and share knowledge efficiently.
+```mermaid
+erDiagram
+    users {
+        ObjectId _id PK
+        String firstName
+        String lastName
+        String email UK
+        String password
+        String[] interests
+        String skillLevel
+        Object profile
+        DateTime createdAt
+        DateTime updatedAt
+    }
 
-Areas for Future Scaling
+    resources {
+        ObjectId _id PK
+        String title
+        String category
+        Integer likes
+        DateTime createdAt
+        DateTime updatedAt
+    }
 
-Permanent Data: Backend API and MongoDB for data persistence.
-Authentication and Messaging: Integration for secure login and real-time messaging.
-Resource Management: Tools for managing skills/resources.
-Recommendations, Ratings, Saved Resources, AI Alerts: Future features to improve engagement and discoverability.
+    conversations {
+        ObjectId _id PK
+        String id
+        String[] participants
+        Object[] messages
+        Object last_read_by
+        DateTime createdAt
+        DateTime updatedAt
+    }
 
-Post-MVP Enhancements
+    contacts {
+        ObjectId _id PK
+        String ownerEmail
+        String contactEmail
+        String name
+        DateTime createdAt
+    }
 
-Messaging Functionality: Users can simulate chat sessions where logged-in users send and receive messages via React.
-Reason: To manage state in a more responsive way and enable conditional rendering for community interaction.
-Future: With backend storage, real-time updates and multi-user communication will be possible.
+    user_embeddings {
+        ObjectId _id PK
+        String email UK
+        Float[] embedding
+        String profile_text
+        DateTime updated_at
+    }
 
-Ratings and Reviews: Skills/Resources can be rated by users. Ratings are stored in React state and displayed next to each resource.
-Reason: Ratings improve discoverability and trust while demonstrating dynamic input handling, component updates, and state management.
-Future: Backend storage will allow aggregation and calculation of average scores per resource.
+    reviews {
+        ObjectId _id PK
+        String userEmail
+        String author
+        String content
+        Integer rating
+        DateTime createdAt
+    }
 
-Search and Filter Skills/Resources
+    skills_pages {
+        ObjectId _id PK
+    }
 
-Users can filter skills/resources via a search bar using keywords or combined queries such as “skills + personal knowledge + resources,” implemented with React state and array filtering.
-Reason: Search enhances user experience, navigation, and interactivity. It also demonstrates how React can manipulate and display data dynamically.
-Future Work: Backend integration will allow dynamic queries, flexible feature generation, and advanced filtering.
+    skills_embeddings {
+        ObjectId _id PK
+        ObjectId page_id FK
+    }
 
-Inline Comments
+    users ||--o{ resources : "creates"
+    users ||--o{ conversations : "participates in"
+    users ||--o{ contacts : "owns"
+    users ||--|| user_embeddings : "has one"
+    users ||--o{ reviews : "writes"
+    users ||--o{ reviews : "receives"
+    skills_pages ||--|| skills_embeddings : "has one"
+```
 
-Inline comments in SkillSphere highlight key parts of the code, showing what was added, removed, or how functions behave.
+### Legal, Ethical, and Risk Considerations
+-   **GDPR & Data Protection:** The application handles user data such as emails and passwords. All passwords are encrypted in the database using the `werkzeug.security` library for hashing and salting, ensuring they are not stored in plaintext. This aligns with data protection best practices.
+-   **Ethical Trade-offs:** The platform's open nature requires content moderation to prevent abuse. Future iterations would include reporting and moderation tools to maintain a safe and trustworthy environment.
+-   **Risk Assessment:** The primary risks, such as data integrity and unauthorized access, are mitigated through server-side validation and a secure authentication system.
 
-React components include comments on props received and their intended use.
+### Reflection on Challenges
+-   **CORS Management:** A key challenge was configuring Cross-Origin Resource Sharing (CORS) between the React frontend (on port 5173) and the Flask backend (on port 5000). This was solved by using the `Flask-Cors` extension to create a whitelist, allowing secure communication between the two services.
+-   **State Management:** Managing user authentication state across the full stack required careful planning. The solution involved using context in React to hold the user's session state and ensuring the backend securely validated requests.
+-   **Data Modeling:** Designing the NoSQL schema to be efficient required consideration of how data would be queried. For instance, embedding some data and referencing other documents was a key decision point.
 
-Short descriptions of state updates and conditional rendering functions explain why they exist.
+### In-Code Documentation
+The codebase is commented to improve clarity and maintainability. Flask routes and helper functions include docstrings explaining their purpose, expected parameters, and return values. On the frontend, React components are commented to describe their props and state.
 
-Comments describe messaging, ratings, and search/filter functionality, demonstrating React state in interactive simulations.
-
-Routing and navigation logic is annotated to show which components render on which paths and how conditional access is handled.
-
-These inline comments improve code quality and clarity, providing future developers insight into the logic flow and blockers addressed during development.
-
-Site Map
-
-Home
-├─ Browse Skills/Resources
-├─ Signup/Login ──> Profile (User)
-│ ├─ Messaging
-│ └─ Saved Resources / Ratings
-└─ Search / Filter
-
-Gantt-style chart placeholder: ![alt text](Gantt-style_timeline.png)
-Site map diagram placeholder: ![alt text](sitemap_flowchart.png)
-
-To identify gaps in the current market, SkillSphere was evaluated against existing learning and community platforms that provide partial overlaps in functionality.
-
-| Platform           | Focus              | Strengths                 | Limits                       | Gap |
-
-| Skillshare         | Paid courses       | Curated content           | Subscription, instructor-led | No peer learning |
-| Meetup             | Community events   | Social networking         | Not learning-focused         | No skill structure |
-| Reddit             | Informal sharing   | Large communities         | Low trust, cluttered         | No profiles/moderation |
-| GitHub Discussions | Tech collaboration | Structured tools          | Developer-only               | Not general learning |
-| SkillSphere        | Peer skill sharing | Free, profiles, messaging | Mock data (current)          | Structured peer learning |
-
-
-This analysis demonstrates that SkillSphere addresses a gap between informal community platforms and structured learning systems by enabling peer-driven skill exchange with user profiles and messaging.
-
-The following code excerpt demonstrates consistent naming conventions, clear structure, and purposeful inline commenting, supporting claims of readability and maintainability.
-
-// src/components/SkillCard.jsx
-
-/**
- * Displays an individual skill or resource card.
- * @param {Object} skill - Skill data object
- * @param {string} skill.title - Title of the skill
- * @param {string} skill.description - Short description
- */
-function SkillCard({ skill }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  // Toggles visibility of additional skill information
-  const handleToggleDetails = () => {
-    setIsExpanded(!isExpanded);
-  };
-
-  return (
-    <div className="p-4 border rounded-lg">
-      <h3 className="text-lg font-semibold">{skill.title}</h3>
-      <p>{skill.description}</p>
-
-      {isExpanded && (
-        <p className="text-sm text-gray-600">
-          Additional information displayed conditionally.
-        </p>
-      )}
-
-      <button onClick={handleToggleDetails}>
-        {isExpanded ? "Hide details" : "Show details"}
-      </button>
-    </div>
-  );
-}
-
-export default SkillCard;
-
-
-This example illustrates:
-
-Descriptive camelCase naming
-
-Clear function responsibilities
-
-Comments explaining intent rather than syntax
-
-Readable component structure aligned with React best practices
-
-AI Usage Declaration
-
+### AI Usage Declaration
 Generative AI techniques were used to review documentation and code for clarity, layout, and error checking. All application code and documentation were authored by the developer, with AI used solely for review and refinement.
 
-References
+### References
 
 AuditBoard. (2025). The GDPR compliance framework: What you need to know in 2025. Retrieved from https://auditboard.com/blog/gdpr-compliance-framework
 
@@ -187,4 +193,4 @@ Nerdify Blog. (2025). 8 essential version control best practices for 2025. Retri
 
 TatvaSoft Blog. (2024, July). Vite vs Create-React-App: A Detailed Comparison. Retrieved from https://www.tatvasoft.com/outsourcing/2024/07/vite-vs-create-react-app.html
 
-Zemith. (2025). 8 version control best practices for teams in 2025. Retrieved from https://www.zemith.com/en/blogs/version-control-best-practices
+Zemith. (2025). 8 version control best practices for teams in 2025. Retrieved from https://www.zemith.com/en/blogs/version-control-best-practices/

@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, UTC
 from typing import Any, Dict, Optional, List
 import voyageai
+from dotenv import load_dotenv
 
 from bson import ObjectId
 from flask import Flask, jsonify, request, session
@@ -14,7 +15,19 @@ from flask_session import Session
 from flask_socketio import SocketIO, emit, join_room
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from werkzeug.security import check_password_hash, generate_password_hash
-
+import numpy as np
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # Manual fallback if dotenv is not installed
+    if os.path.exists(".env"):
+        with open(".env") as f:
+            for line in f:
+                if "=" in line and not line.startswith("#"):
+                    key, value = line.strip().split("=", 1)
+                    os.environ[key] = value.strip("'").strip('"')
 
 # =============================================================================
 # App + Config
@@ -22,7 +35,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 app = Flask(__name__)
 
 # SECRET_KEY must be set before Session(app)
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "skillswap-dev-secret-2026-change-prod!")
+app.config["SECRET_KEY"] = os.getenv(
+    "SECRET_KEY", "skillswap-dev-secret-2026-change-prod!")
 app.config["SESSION_TYPE"] = "filesystem"
 app.config["SESSION_PERMANENT"] = True
 app.config["SESSION_USE_SIGNER"] = True
@@ -30,7 +44,14 @@ app.config["SESSION_KEY_PREFIX"] = "skillswap_session:"
 Session(app)
 
 # Voyage AI Configuration
-VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY", "your-voyage-api-key-here")  # Set this in environment variables
+# Strip whitespace/quotes to prevent 401 errors
+VOYAGE_API_KEY = (os.getenv("VOYAGE_API_KEY")
+                  or "").strip().strip("'").strip('"')
+if not VOYAGE_API_KEY:
+    print("⚠️ WARNING: VOYAGE_API_KEY not found in environment variables!")
+else:
+    print(f"🔑 VOYAGE_API_KEY loaded (Starts with: {VOYAGE_API_KEY[:4]}...)")
+
 vo = voyageai.Client(api_key=VOYAGE_API_KEY)
 
 # Frontend origin (Vite)
@@ -56,7 +77,8 @@ socketio = SocketIO(
 # =============================================================================
 # MongoDB
 # =============================================================================
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://garyc4088:Meghank1@skillsphere.wk5x60k.mongodb.net/")
+MONGO_URI = os.getenv(
+    "MONGO_URI", "mongodb+srv://garyc4088:Meghank1@skillsphere.wk5x60k.mongodb.net/")
 client = MongoClient(MONGO_URI)
 db = client["skillswap"]
 
@@ -64,18 +86,25 @@ users = db["users"]
 resources_col = db["resources"]
 conversations = db["conversations"]
 contacts = db["contacts"]
-user_embeddings = db["user_embeddings"]  # New collection for storing embeddings
+# New collection for storing embeddings
+user_embeddings = db["user_embeddings"]
 reviews = db["reviews"]  # NEW: Reviews collection
+skills_pages = db['skills_pages']
+skills_embeddings = db['skills_embeddings']
 
 try:
     users.create_index([("email", ASCENDING)], unique=True)
     conversations.create_index([("id", ASCENDING)], unique=True)
     conversations.create_index([("participants", ASCENDING)])
     conversations.create_index([("updated_at", DESCENDING)])
-    user_embeddings.create_index([("email", ASCENDING)], unique=True)  # Index for embeddings
-    user_embeddings.create_index([("embedding", "2dsphere")])  # For similarity search
+    user_embeddings.create_index(
+        [("email", ASCENDING)], unique=True)  # Index for embeddings
+    user_embeddings.create_index(
+        [("embedding", "2dsphere")])  # For similarity search
     reviews.create_index([("userEmail", ASCENDING)])  # NEW: Index for reviews
-    reviews.create_index([("createdAt", DESCENDING)])  # NEW: Index for sorting reviews
+    # NEW: Index for sorting reviews
+    reviews.create_index([("createdAt", DESCENDING)])
+    skills_embeddings.create_index('page_id', ASCENDING, unique=True)
 except Exception as e:
     print("⚠️ Index creation warning:", repr(e))
 
@@ -92,14 +121,14 @@ def generate_user_profile_text(user: Dict[str, Any]) -> str:
         interests_text = ' '.join(interests)
     else:
         interests_text = str(interests)
-    
+
     skill_level = user.get('skillLevel', '')
     first_name = user.get('firstName', '')
     last_name = user.get('lastName', '')
-    
+
     # Combine relevant user information for embedding
     profile_text = f"{first_name} {last_name} is interested in {interests_text}. Skill level: {skill_level}"
-    
+
     # Add profile data if exists
     profile = user.get('profile', {})
     if profile:
@@ -110,7 +139,7 @@ def generate_user_profile_text(user: Dict[str, Any]) -> str:
         else:
             skills_text = str(skills)
         profile_text += f" Bio: {bio}. Skills: {skills_text}"
-    
+
     return profile_text
 
 
@@ -119,17 +148,19 @@ def generate_and_store_embedding(user: Dict[str, Any]) -> Optional[List[float]]:
     try:
         email = user.get('email')
         if not email:
+            print("⚠️ Embedding failed: No email found in user object")
             return None
-        
+
         # Generate text for embedding
         text = generate_user_profile_text(user)
-        
+        print(f"📡 Sending to Voyage AI for {email}: \"{text[:50]}...\"")
+
         # Generate embedding using Voyage AI
-        result = vo.embed([text], model="voyage-2")  # You can change the model as needed
+        result = vo.embed([text], model="voyage-2")
         embedding = result.embeddings[0]
-        
+
         # Store in database
-        user_embeddings.update_one(
+        res = user_embeddings.update_one(
             {"email": email},
             {
                 "$set": {
@@ -141,10 +172,12 @@ def generate_and_store_embedding(user: Dict[str, Any]) -> Optional[List[float]]:
             },
             upsert=True
         )
-        
+        print(
+            f"✅ Embedding stored in MongoDB for {email} (Matched: {res.matched_count}, Upserted ID: {res.upserted_id})")
         return embedding
     except Exception as e:
-        print(f"❌ Error generating embedding for {user.get('email')}: {repr(e)}")
+        print(
+            f"❌ Error generating embedding for {user.get('email')}: {repr(e)}")
         return None
 
 
@@ -164,19 +197,20 @@ def find_similar_users(email: str, limit: int = 10) -> List[Dict[str, Any]]:
             user_embedding = embedding
         else:
             user_embedding = user_embedding_doc['embedding']
-        
+
         # Get all other users' embeddings
         all_embeddings = list(user_embeddings.find({"email": {"$ne": email}}))
-        
+
         # Calculate similarities
         similarities = []
         for emb_doc in all_embeddings:
             if 'embedding' not in emb_doc:
                 continue
-            
+
             # Compute cosine similarity
-            similarity = cosine_similarity(user_embedding, emb_doc['embedding'])
-            
+            similarity = cosine_similarity(
+                user_embedding, emb_doc['embedding'])
+
             # Get user details
             user = users.find_one({"email": emb_doc['email']})
             if user:
@@ -184,11 +218,11 @@ def find_similar_users(email: str, limit: int = 10) -> List[Dict[str, Any]]:
                     "user": _serialize_user(user),
                     "similarity_score": similarity
                 })
-        
+
         # Sort by similarity and return top matches
         similarities.sort(key=lambda x: x['similarity_score'], reverse=True)
         return similarities[:limit]
-        
+
     except Exception as e:
         print(f"❌ Error finding similar users: {repr(e)}")
         return []
@@ -199,10 +233,10 @@ def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     dot_product = sum(a * b for a, b in zip(vec1, vec2))
     magnitude1 = sum(a * a for a in vec1) ** 0.5
     magnitude2 = sum(b * b for b in vec2) ** 0.5
-    
+
     if magnitude1 == 0 or magnitude2 == 0:
         return 0
-    
+
     return dot_product / (magnitude1 * magnitude2)
 
 
@@ -220,18 +254,19 @@ def search_users_by_text(query: str, limit: int = 10) -> List[Dict[str, Any]]:
         # Generate embedding for the query
         result = vo.embed([query], model="voyage-2")
         query_embedding = result.embeddings[0]
-        
+
         # Get all user embeddings
         all_embeddings = list(user_embeddings.find())
-        
+
         # Calculate similarities
         similarities = []
         for emb_doc in all_embeddings:
             if 'embedding' not in emb_doc:
                 continue
-            
-            similarity = cosine_similarity(query_embedding, emb_doc['embedding'])
-            
+
+            similarity = cosine_similarity(
+                query_embedding, emb_doc['embedding'])
+
             user = users.find_one({"email": emb_doc['email']})
             if user:
                 similarities.append({
@@ -239,18 +274,18 @@ def search_users_by_text(query: str, limit: int = 10) -> List[Dict[str, Any]]:
                     "similarity_score": similarity,
                     "matched_text": emb_doc.get('profile_text', '')
                 })
-        
+
         # Sort by similarity and return top matches
         similarities.sort(key=lambda x: x['similarity_score'], reverse=True)
         return similarities[:limit]
-        
+
     except Exception as e:
         print(f"❌ Error searching users: {repr(e)}")
         return []
 
 
 # =============================================================================
-# Helpers (existing code continues)
+# Helpers
 # =============================================================================
 def _iso(v: Any) -> Any:
     return v.isoformat() if isinstance(v, datetime) else v
@@ -317,12 +352,13 @@ def _serialize_review(doc: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # =============================================================================
-# Socket.IO Events (unchanged)
+# Socket.IO Events
 # =============================================================================
 @socketio.on("connect")
 def on_connect(auth=None):
     try:
-        emit("connect_success", {"message": "Connected. Please register email."})
+        emit("connect_success", {
+             "message": "Connected. Please register email."})
     except Exception as e:
         print("❌ Socket connect handler error:", repr(e))
 
@@ -337,7 +373,8 @@ def on_register(payload):
             return
 
         join_room(email)
-        emit("register_success", {"message": f"Registered room for {email}", "email": email}, room=email)
+        emit("register_success", {
+             "message": f"Registered room for {email}", "email": email}, room=email)
         print(f"✅ Socket registered room: {email}")
 
     except Exception as e:
@@ -365,7 +402,8 @@ def socket_send_message(payload):
         text = (data.get("text") or "").strip()
 
         if not conv_id or not from_email or not to_email or not text:
-            emit("message_error", {"message": "conversationId, from, to, text required"})
+            emit("message_error", {
+                 "message": "conversationId, from, to, text required"})
             return
 
         msg = {
@@ -378,7 +416,8 @@ def socket_send_message(payload):
 
         res = conversations.update_one(
             {"id": conv_id},
-            {"$push": {"messages": msg}, "$set": {"updated_at": datetime.now(UTC)}},
+            {"$push": {"messages": msg}, "$set": {
+                "updated_at": datetime.now(UTC)}},
         )
         if res.matched_count == 0:
             emit("message_error", {"message": "Conversation not found"})
@@ -386,8 +425,10 @@ def socket_send_message(payload):
 
         safe_msg = {**msg, "timestamp": _iso(msg["timestamp"])}
 
-        emit("new_message", {"conversationId": conv_id, "message": safe_msg}, room=from_email)
-        emit("new_message", {"conversationId": conv_id, "message": safe_msg}, room=to_email)
+        emit("new_message", {"conversationId": conv_id,
+             "message": safe_msg}, room=from_email)
+        emit("new_message", {"conversationId": conv_id,
+             "message": safe_msg}, room=to_email)
 
     except Exception as e:
         print("❌ send_message socket error:", repr(e))
@@ -403,10 +444,15 @@ def home():
 
 
 # =============================================================================
-# Resources (unchanged)
+# Resources
 # =============================================================================
 @app.route("/api/resources", methods=["GET", "POST"])
 def resources_route():
+    """Handle resources.
+    - GET: Fetches all resources, optionally filtered by a 'category' query param.
+    - POST: Creates a new resource. Expects a JSON payload with a 'title'
+      and other resource details.
+    """
     if request.method == "GET":
         category = (request.args.get("category") or "").strip()
         query = {"category": category} if category else {}
@@ -442,7 +488,8 @@ def update_resource(resource_id):
 
     result = resources_col.update_one(
         filter_query,
-        {"$set": {"likes": int(data["likes"]), "updated_at": datetime.now(UTC)}},
+        {"$set": {"likes": int(data["likes"]),
+                  "updated_at": datetime.now(UTC)}},
     )
     if result.matched_count == 0:
         return jsonify({"error": "Resource not found"}), 404
@@ -452,12 +499,18 @@ def update_resource(resource_id):
 
 
 # =============================================================================
-# Auth (updated to generate embeddings)
+# Auth
 # =============================================================================
 @app.post("/api/register")
 def register():
+    """Register a new user.
+    Expects a JSON payload with firstName, lastName, email, password,
+    interests, and skillLevel.
+    Returns the new user object on success or an error message on failure.
+    """
     data = _require_json()
-    required = ["firstName", "lastName", "email", "password", "interests", "skillLevel"]
+    required = ["firstName", "lastName", "email",
+                "password", "interests", "skillLevel"]
     missing = [k for k in required if not data.get(k)]
     if missing:
         return jsonify({"error": "Missing fields", "missing": missing}), 400
@@ -489,6 +542,11 @@ def register():
 
 @app.post("/api/login")
 def login():
+    """Authenticate a user.
+    Expects a JSON payload with email and password.
+    Establishes a session on success and returns the user object.
+    Returns an error for invalid credentials.
+    """
     data = _require_json()
     email = _normalize_email(data.get("email") or "")
     password = data.get("password") or ""
@@ -524,16 +582,16 @@ def get_user_by_email():
     email = request.args.get("email", "").strip().lower()
     if not email:
         return jsonify({"error": "email required"}), 400
-    
+
     user = users.find_one({"email": email})
     if not user:
         return jsonify({"user": None}), 200
-    
+
     name = f"{user.get('firstName', '')} {user.get('lastName', '')}".strip()
     if not name:
         # Clean up email to username (john.doe@ → John Doe)
         name = email.split('@')[0].replace('.', ' ').title()
-    
+
     return jsonify({
         "user": {
             "id": str(user["_id"]),
@@ -544,10 +602,15 @@ def get_user_by_email():
 
 
 # =============================================================================
-# Profile (updated to regenerate embeddings on profile update)
+# Profile
 # =============================================================================
 @app.route("/api/profile", methods=["GET", "POST"])
 def profile():
+    """Handle user profiles.
+    - GET: Fetches a user's profile based on an 'email' query parameter.
+    - POST: Updates a user's profile. Expects a JSON payload containing
+      the user's 'email' and a 'profile' object with the fields to update.
+    """
     if request.method == "GET":
         email = _normalize_email(request.args.get("email") or "")
         if not email:
@@ -570,9 +633,21 @@ def profile():
 
     profile_update["updatedAt"] = datetime.now(UTC)
 
+    # Extract interests and skillLevel if they were sent in the profile object
+    # This allows the ProfilePage to update these top-level fields
+    update_fields = {
+        "profile": profile_update,
+        "updated_at": datetime.now(UTC)
+    }
+
+    if "interests" in profile_update:
+        update_fields["interests"] = profile_update.pop("interests")
+    if "skillLevel" in profile_update:
+        update_fields["skillLevel"] = profile_update.pop("skillLevel")
+
     result = users.update_one(
         {"email": email},
-        {"$set": {"profile": profile_update, "updated_at": datetime.now(UTC)}},
+        {"$set": update_fields},
         upsert=False,
     )
     if result.matched_count == 0:
@@ -595,27 +670,28 @@ def handle_reviews():
         user_email = _normalize_email(request.args.get("userEmail") or "")
         if not user_email:
             return jsonify({"message": "userEmail is required"}), 400
-        
+
         try:
-            review_docs = list(reviews.find({"userEmail": user_email}).sort("createdAt", DESCENDING))
+            review_docs = list(reviews.find(
+                {"userEmail": user_email}).sort("createdAt", DESCENDING))
             return jsonify({"reviews": [_serialize_review(r) for r in review_docs]}), 200
         except Exception as e:
             print(f"❌ Error fetching reviews: {repr(e)}")
             return jsonify({"message": "Failed to fetch reviews"}), 500
-    
+
     # POST - Create a new review
     data = _require_json()
     user_email = _normalize_email(data.get("userEmail") or "")
     author = data.get("author", "").strip()
     content = data.get("content", "").strip()
     rating = data.get("rating", 5)
-    
+
     if not user_email or not author or not content:
         return jsonify({"message": "userEmail, author, and content are required"}), 400
-    
+
     if not isinstance(rating, int) or rating < 1 or rating > 5:
         return jsonify({"message": "rating must be an integer between 1 and 5"}), 400
-    
+
     try:
         review_doc = {
             "userEmail": user_email,
@@ -624,12 +700,12 @@ def handle_reviews():
             "rating": rating,
             "createdAt": datetime.now(UTC)
         }
-        
+
         result = reviews.insert_one(review_doc)
         review_doc["_id"] = result.inserted_id
-        
+
         return jsonify(_serialize_review(review_doc)), 201
-        
+
     except Exception as e:
         print(f"❌ Error creating review: {repr(e)}")
         return jsonify({"message": "Failed to create review"}), 500
@@ -642,11 +718,11 @@ def delete_review(review_id):
         oid = _safe_object_id(review_id)
         if not oid:
             return jsonify({"message": "Invalid review ID"}), 400
-        
+
         result = reviews.delete_one({"_id": oid})
         if result.deleted_count == 0:
             return jsonify({"message": "Review not found"}), 404
-        
+
         return jsonify({"message": "Review deleted successfully"}), 200
     except Exception as e:
         print(f"❌ Error deleting review: {repr(e)}")
@@ -661,10 +737,10 @@ def get_similar_users():
     """Get users with similar interests based on Voyage AI embeddings"""
     email = _normalize_email(request.args.get("email") or "")
     limit = int(request.args.get("limit", "10"))
-    
+
     if not email:
         return jsonify({"message": "email is required"}), 400
-    
+
     similar_users = find_similar_users(email, limit)
     return jsonify({
         "matches": similar_users,
@@ -678,10 +754,10 @@ def search_users():
     data = _require_json()
     query = data.get("query", "").strip()
     limit = int(data.get("limit", 10))
-    
+
     if not query:
         return jsonify({"message": "query is required"}), 400
-    
+
     results = search_users_by_text(query, limit)
     return jsonify({
         "query": query,
@@ -695,14 +771,14 @@ def update_user_embedding():
     """Manually trigger embedding update for a user"""
     data = _require_json()
     email = _normalize_email(data.get("email") or "")
-    
+
     if not email:
         return jsonify({"message": "email is required"}), 400
-    
+
     user = users.find_one({"email": email})
     if not user:
         return jsonify({"message": "User not found"}), 404
-    
+
     embedding = generate_and_store_embedding(user)
     if embedding:
         return jsonify({"message": "Embedding updated successfully"}), 200
@@ -723,13 +799,13 @@ def get_recommendations():
     """Get personalized recommendations based on user interests"""
     email = _normalize_email(request.args.get("email") or "")
     limit = int(request.args.get("limit", "5"))
-    
+
     if not email:
         return jsonify({"message": "email is required"}), 400
-    
+
     # Get similar users
     similar_users = find_similar_users(email, limit)
-    
+
     # Get resources based on user's interests
     user = users.find_one({"email": email})
     if user and user.get('interests'):
@@ -743,7 +819,7 @@ def get_recommendations():
             recommended_resources = []
     else:
         recommended_resources = []
-    
+
     return jsonify({
         "similar_users": similar_users,
         "recommended_resources": recommended_resources
@@ -751,7 +827,7 @@ def get_recommendations():
 
 
 # =============================================================================
-# Messaging / Conversations (unchanged)
+# Messaging / Conversations
 # =============================================================================
 @app.get("/api/messages")
 def get_conversations():
@@ -760,10 +836,80 @@ def get_conversations():
         return jsonify({"message": "email is required"}), 400
 
     try:
-        convs = list(conversations.find({"participants": email}).sort("updated_at", DESCENDING))
+        convs = list(conversations.find(
+            {"participants": email}).sort("updated_at", DESCENDING))
         return jsonify({"conversations": [_serialize_conversation(c) for c in convs]}), 200
     except Exception as e:
         print("❌ /api/messages error:", repr(e))
+        return jsonify({"message": "Internal Server Error"}), 500
+
+
+@app.get("/api/messages/unread-count")
+def get_unread_count():
+    email = _normalize_email(request.args.get("email") or "")
+    if not email:
+        return jsonify({"message": "email is required"}), 400
+
+    try:
+        # Find all conversations where the user is a participant
+        convs = list(conversations.find({"participants": email}))
+        unread_count = 0
+
+        for conv in convs:
+            msgs = conv.get("messages", [])
+            if not msgs:
+                continue
+
+            # Check last_read_by for this user
+            last_read_by = conv.get("last_read_by", {})
+            last_read_time = last_read_by.get(email)
+
+            # Convert last_read_time to datetime if it's a string
+            if isinstance(last_read_time, str):
+                try:
+                    last_read_time = datetime.fromisoformat(
+                        last_read_time.replace('Z', '+00:00'))
+                except:
+                    last_read_time = None
+
+            last_msg = msgs[-1]
+            last_msg_time = last_msg.get("timestamp")
+            if isinstance(last_msg_time, str):
+                try:
+                    last_msg_time = datetime.fromisoformat(
+                        last_msg_time.replace('Z', '+00:00'))
+                except:
+                    last_msg_time = datetime.now(UTC)  # fallback
+
+            # If user has NEVER read or last message is newer than last read
+            # AND the message isn't from the user themselves
+            if (_normalize_email(last_msg.get("from")) != email):
+                if not last_read_time or last_msg_time > last_read_time:
+                    unread_count += 1
+
+        return jsonify({"unread_count": unread_count}), 200
+    except Exception as e:
+        print("❌ /api/messages/unread-count error:", repr(e))
+        return jsonify({"message": "Internal Server Error"}), 500
+
+
+@app.post("/api/messages/mark-read")
+def mark_conversation_read():
+    data = _require_json()
+    conv_id = data.get("conversationId")
+    email = _normalize_email(data.get("email"))
+
+    if not conv_id or not email:
+        return jsonify({"message": "conversationId and email required"}), 400
+
+    try:
+        conversations.update_one(
+            {"id": conv_id},
+            {"$set": {f"last_read_by.{email}": datetime.now(UTC)}}
+        )
+        return jsonify({"message": "Conversation marked as read"}), 200
+    except Exception as e:
+        print("❌ /api/messages/mark-read error:", repr(e))
         return jsonify({"message": "Internal Server Error"}), 500
 
 
@@ -819,7 +965,8 @@ def send_message_rest():
     try:
         res = conversations.update_one(
             {"id": conv_id},
-            {"$push": {"messages": msg}, "$set": {"updated_at": datetime.now(UTC)}},
+            {"$push": {"messages": msg}, "$set": {
+                "updated_at": datetime.now(UTC)}},
         )
         if res.matched_count == 0:
             return jsonify({"message": "Conversation not found"}), 404
@@ -827,8 +974,10 @@ def send_message_rest():
         safe_msg = {**msg, "timestamp": _iso(msg["timestamp"])}
 
         # Emit real-time to both users if connected/registered
-        socketio.emit("new_message", {"conversationId": conv_id, "message": safe_msg}, room=from_email)
-        socketio.emit("new_message", {"conversationId": conv_id, "message": safe_msg}, room=to_email)
+        socketio.emit("new_message", {
+                      "conversationId": conv_id, "message": safe_msg}, room=from_email)
+        socketio.emit("new_message", {
+                      "conversationId": conv_id, "message": safe_msg}, room=to_email)
 
         return jsonify({"conversationId": conv_id, "message": safe_msg}), 201
 
@@ -838,7 +987,7 @@ def send_message_rest():
 
 
 # =============================================================================
-# Contacts (unchanged)
+# Contacts
 # =============================================================================
 @app.get("/api/contacts")
 def get_contacts():
@@ -847,7 +996,8 @@ def get_contacts():
         return jsonify({"message": "email is required"}), 400
 
     try:
-        docs = list(contacts.find({"ownerEmail": email}).sort("created_at", DESCENDING))
+        docs = list(contacts.find({"ownerEmail": email}).sort(
+            "created_at", DESCENDING))
         out = []
         for d in docs:
             dd = dict(d)
@@ -885,4 +1035,5 @@ def add_contact():
 # Run
 # =============================================================================
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=True)
+    socketio.run(app, host="0.0.0.0", port=int(
+        os.getenv("PORT", "5000")), debug=True)

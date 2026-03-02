@@ -1,11 +1,18 @@
 import React, { useState, useContext, useRef, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
+import { useNotifications } from "../context/NotificationContext";
 import { useDispatch } from "react-redux";
 import { addConversation } from "../store/slices/messagesSlice";
 import Button from "../components/Button";
 
 const ProfilePage = () => {
   const { isAuthenticated, userEmail } = useContext(AuthContext);
+  const { 
+    requestNotificationPermission, 
+    hasPermission, 
+    testAddNotification,
+    socketConnected 
+  } = useNotifications();
   const dispatch = useDispatch();
   const fileInputRef = useRef(null);
 
@@ -15,8 +22,21 @@ const ProfilePage = () => {
     age: "",
     skills: "",
     qualifications: "",
-    image: ""
+    image: "",
+    interests: [],
+    skillLevel: ""
   };
+
+  const skillCategories = [
+    { value: "art", label: "Art & Design" },
+    { value: "baking", label: "Baking & Cooking" },
+    { value: "coding", label: "Coding & Tech" },
+    { value: "sports", label: "Sports & Fitness" },
+    { value: "music", label: "Music & Audio" },
+    { value: "ai", label: "AI & Automation" }
+  ];
+
+  const skillLevels = ["beginner", "intermediate", "advanced", "expert"];
 
   const [profile, setProfile] = useState(defaultProfile);
   const [savedProfile, setSavedProfile] = useState(defaultProfile);
@@ -83,7 +103,18 @@ const ProfilePage = () => {
         const res = await fetch(`/api/profile?email=${encodeURIComponent(userEmail)}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const loaded = { ...defaultProfile, ...(data.profile || {}) };
+        
+        // Also fetch the user's top-level interests and skill level
+        const userRes = await fetch(`/api/me`);
+        const userData = await userRes.json();
+        
+        const loaded = { 
+          ...defaultProfile, 
+          ...(data.profile || {}),
+          interests: userData.user?.interests || [],
+          skillLevel: userData.user?.skillLevel || ""
+        };
+        
         setProfile(loaded);
         setSavedProfile(loaded);
         console.log('✅ Profile loaded:', loaded);
@@ -126,6 +157,14 @@ const ProfilePage = () => {
     setProfile({ ...profile, [e.target.name]: e.target.value });
   };
 
+  const handleInterestToggle = (value) => {
+    const currentInterests = Array.isArray(profile.interests) ? profile.interests : [];
+    const newInterests = currentInterests.includes(value)
+      ? currentInterests.filter(i => i !== value)
+      : [...currentInterests, value];
+    setProfile({ ...profile, interests: newInterests });
+  };
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -140,13 +179,24 @@ const ProfilePage = () => {
       const res = await fetch('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: userEmail, profile })
+        body: JSON.stringify({ 
+          email: userEmail, 
+          profile: profile 
+        })
       });
       if (!res.ok) throw new Error(await res.text());
+      
+      // Explicitly trigger embedding update to ensure AI matching is current
+      await fetch('/api/users/update-embedding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail })
+      });
+
       setSavedProfile(profile);
       setIsEditing(false);
       setProfileError('');
-      console.log('✅ Profile saved');
+      console.log('✅ Profile saved and AI embedding updated');
     } catch (err) {
       setProfileError(err.message);
       console.error('Save error:', err);
@@ -211,8 +261,21 @@ const ProfilePage = () => {
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Profile</h1>
-        <div className="space-x-2">
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold">Profile</h1>
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gray-100 border border-gray-200">
+            <div className={`w-2 h-2 rounded-full ${socketConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              {socketConnected ? 'Real-time Online' : 'Offline'}
+            </span>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {!hasPermission && (
+            <Button onClick={requestNotificationPermission} variant="outline" size="sm">
+              Enable Notifications
+            </Button>
+          )}
           {isEditing ? (
             <>
               <Button onClick={saveProfile} disabled={!profile.name.trim()} variant="default">
@@ -307,14 +370,67 @@ const ProfilePage = () => {
                 )}
 
                 {isEditing ? (
-                  <div className="grid grid-cols-2 gap-4 text-sm mb-6">
-                    <input name="age" value={profile.age} onChange={handleProfileChange} placeholder="Age" className="p-2 border rounded-lg" />
-                    <input name="pronouns" value={profile.pronouns} onChange={handleProfileChange} placeholder="Pronouns" className="p-2 border rounded-lg" />
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Skill Level</label>
+                      <select 
+                        name="skillLevel" 
+                        value={profile.skillLevel} 
+                        onChange={handleProfileChange}
+                        className="w-full p-2 border rounded-lg bg-white"
+                      >
+                        <option value="">Select Level</option>
+                        {skillLevels.map(level => (
+                          <option key={level} value={level}>{level.charAt(0).toUpperCase() + level.slice(1)}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Interests (for AI matching)</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {skillCategories.map((cat) => (
+                          <button
+                            key={cat.value}
+                            type="button"
+                            onClick={() => handleInterestToggle(cat.value)}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
+                              profile.interests.includes(cat.value)
+                                ? "border-blue-500 bg-blue-50 text-blue-700"
+                                : "border-gray-200 hover:border-blue-200 text-gray-600"
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <input name="age" value={profile.age} onChange={handleProfileChange} placeholder="Age" className="p-2 border rounded-lg" />
+                      <input name="pronouns" value={profile.pronouns} onChange={handleProfileChange} placeholder="Pronouns" className="p-2 border rounded-lg" />
+                    </div>
                   </div>
                 ) : (
-                  <div className="text-gray-600 mb-6 space-y-1">
-                    {profile.age && <p>Age: {profile.age}</p>}
-                    {profile.pronouns && <p>{profile.pronouns}</p>}
+                  <div className="text-gray-600 mb-6 space-y-2">
+                    <div className="flex flex-wrap gap-4">
+                      {profile.age && <p><span className="font-medium">Age:</span> {profile.age}</p>}
+                      {profile.pronouns && <p><span className="font-medium">Pronouns:</span> {profile.pronouns}</p>}
+                      {profile.skillLevel && <p><span className="font-medium text-blue-600 capitalize">{profile.skillLevel}</span></p>}
+                    </div>
+                    
+                    {profile.interests && profile.interests.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Interests</p>
+                        <div className="flex flex-wrap gap-1">
+                          {profile.interests.map((int) => (
+                            <span key={int} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs capitalize">
+                              {int}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

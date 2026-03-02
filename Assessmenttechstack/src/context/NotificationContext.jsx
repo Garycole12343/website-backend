@@ -118,6 +118,35 @@ export const NotificationProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    const checkUnreadOnLogin = async () => {
+      if (currentUserEmail && isAuthenticated) {
+        try {
+          console.log("🔍 Checking for missed messages for:", currentUserEmail);
+          const res = await fetch(`/api/messages/unread-count?email=${encodeURIComponent(currentUserEmail)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.unread_count > 0) {
+              console.log(`👋 Welcome back! ${data.unread_count} unread conversations found.`);
+              addNotification({
+                type: "WELCOME_BACK",
+                title: "Welcome Back!",
+                message: `You have ${data.unread_count} unread ${data.unread_count === 1 ? 'conversation' : 'conversations'} waiting for you.`,
+                from: "System",
+                conversationId: "inbox",
+                read: false,
+              });
+            }
+          }
+        } catch (error) {
+          console.error("❌ Error checking unread messages:", error);
+        }
+      }
+    };
+
+    checkUnreadOnLogin();
+  }, [currentUserEmail, isAuthenticated, addNotification]);
+
+  useEffect(() => {
     console.log("🔌 NOTIFICATION CONTEXT SOCKET SETUP:");
     console.log("  - currentUserEmail:", currentUserEmail);
     console.log("  - isAuthenticated:", isAuthenticated);

@@ -85,7 +85,7 @@ class SocketService {
 
     // Connection events
     this.socket.on("connect", () => {
-      console.log("✅✅✅ Socket.IO connected successfully!");
+      console.log("✅✅✅ Socket.IO connected successfully! ID:", this.socket.id);
       this.connected = true;
 
       this.triggerEvent("CONNECTED", {
@@ -94,10 +94,12 @@ class SocketService {
       });
 
       // Register with server after connection
-      if (this.userEmail) {
-        console.log("🔌 Registering with server as:", this.userEmail);
-        this.socket.emit("register", { email: this.userEmail });
-      }
+      this.register();
+    });
+
+    this.socket.on("reconnect", (attempt) => {
+      console.log("🔄 Socket.IO reconnected after", attempt, "attempts");
+      this.register();
     });
 
     this.socket.on("connect_success", (data) => {
@@ -219,6 +221,15 @@ class SocketService {
         console.log(`📝 Unsubscribed from "${event}"`);
       }
     };
+  }
+
+  register() {
+    if (this.socket && this.socket.connected && this.userEmail) {
+      console.log("🔌 Sending 'register' event for:", this.userEmail);
+      this.socket.emit("register", { email: this.userEmail });
+      return true;
+    }
+    return false;
   }
 
   send(event, payload) {

@@ -12,6 +12,7 @@ import {
   fetchConversations,
   sendMessage,
   addIncomingMessage,
+  markConversationRead,
 } from "../store/slices/messagesSlice";
 
 function Messages() {
@@ -28,6 +29,22 @@ function Messages() {
   const messagesEndRef = useRef(null);
 
   const currentUser = (userEmail || "").toLowerCase().trim();
+
+  // Mark selected conversation as read
+  useEffect(() => {
+    if (selectedConversationId && currentUser) {
+      const conv = conversations.find(c => c.id === selectedConversationId);
+      if (conv) {
+        const lastMsg = conv.messages?.[conv.messages.length - 1];
+        const lastReadTime = conv.last_read_by?.[currentUser];
+        
+        // Only mark as read if there's a new message since last read
+        if (lastMsg && (!lastReadTime || new Date(lastMsg.timestamp) > new Date(lastReadTime))) {
+           dispatch(markConversationRead({ conversationId: selectedConversationId, email: currentUser }));
+        }
+      }
+    }
+  }, [selectedConversationId, conversations, currentUser, dispatch]);
 
   // Fetch username for an email and cache it (keyed by normalized email)
   const getUserName = async (email) => {
@@ -261,21 +278,27 @@ function Messages() {
                     const lastMessage = conv.messages?.[conv.messages.length - 1];
                     const isSelected = selectedConversationId === conv.id;
 
+                    // Calculate unread status
+                    const lastReadTime = conv.last_read_by?.[currentUser];
+                    const isUnread = lastMessage && 
+                                    (String(lastMessage.from).toLowerCase().trim() !== currentUser) && 
+                                    (!lastReadTime || new Date(lastMessage.timestamp) > new Date(lastReadTime));
+
                     return (
                       <li
                         key={conv.id}
                         onClick={() => setSelectedConversationId(conv.id)}
-                        className={`cursor-pointer p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                        className={`cursor-pointer p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors relative ${
                           isSelected ? "bg-green-50 border-l-4 border-l-green-500" : ""
-                        }`}
+                        } ${isUnread ? "bg-blue-50/30" : ""}`}
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <div className="font-medium text-gray-900">
+                            <div className={`font-medium ${isUnread ? "text-blue-900 font-bold" : "text-gray-900"}`}>
                               {displayName}
                             </div>
                             {lastMessage && (
-                              <div className="text-sm text-gray-600 truncate mt-1">
+                              <div className={`text-sm mt-1 truncate ${isUnread ? "text-blue-800 font-semibold" : "text-gray-600"}`}>
                                 {String(lastMessage.from || "").toLowerCase().trim() ===
                                 currentUser
                                   ? "You: "
@@ -284,6 +307,11 @@ function Messages() {
                               </div>
                             )}
                           </div>
+                          {isUnread && (
+                            <div className="ml-2 mt-1.5">
+                              <div className="w-3 h-3 bg-blue-600 rounded-full shadow-sm"></div>
+                            </div>
+                          )}
                         </div>
                         {lastMessage && (
                           <div className="text-xs text-gray-400 mt-2">
