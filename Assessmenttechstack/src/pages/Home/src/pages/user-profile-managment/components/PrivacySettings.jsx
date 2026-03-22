@@ -77,7 +77,7 @@ const PrivacySettings = ({
               } ${!isEditMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
+                className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform duration-200 ${
                   privacySettings?.[setting?.id] ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />

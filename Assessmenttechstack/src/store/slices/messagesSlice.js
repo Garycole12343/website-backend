@@ -78,6 +78,44 @@ export const markConversationRead = createAsyncThunk(
   }
 );
 
+// Delete a specific message
+export const deleteMessage = createAsyncThunk(
+  "messages/deleteMessage",
+  async ({ conversationId, messageId }, { rejectWithValue }) => {
+    try {
+      const res = await fetch("/api/messages/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId, messageId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return rejectWithValue(data.error || "Failed to delete message");
+      return { conversationId, messageId };
+    } catch (err) {
+      return rejectWithValue(err?.message || "Network error");
+    }
+  }
+);
+
+// Delete an entire conversation
+export const deleteConversation = createAsyncThunk(
+  "messages/deleteConversation",
+  async ({ conversationId }, { rejectWithValue }) => {
+    try {
+      const res = await fetch("/api/messages/conversation/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return rejectWithValue(data.error || "Failed to delete conversation");
+      return { conversationId };
+    } catch (err) {
+      return rejectWithValue(err?.message || "Network error");
+    }
+  }
+);
+
 // ---- helpers ----
 function ensureConvShape(conv) {
   if (!conv) return conv;
@@ -211,6 +249,21 @@ const messagesSlice = createSlice({
           if (!conv.last_read_by) conv.last_read_by = {};
           conv.last_read_by[email] = timestamp;
         }
+      })
+      
+      // deleteMessage
+      .addCase(deleteMessage.fulfilled, (state, action) => {
+        const { conversationId, messageId } = action.payload;
+        const conv = state.conversations.find(c => c.id === conversationId);
+        if (conv) {
+          conv.messages = conv.messages.filter(m => m.id !== messageId);
+        }
+      })
+      
+      // deleteConversation
+      .addCase(deleteConversation.fulfilled, (state, action) => {
+        const { conversationId } = action.payload;
+        state.conversations = state.conversations.filter(c => c.id !== conversationId);
       });
   },
 });

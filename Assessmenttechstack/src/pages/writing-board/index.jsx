@@ -25,7 +25,7 @@ const ContactModal = ({
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded w-full max-w-md">
+      <div className="bg-card p-6 rounded w-full max-w-md">
         <h2 className="text-xl font-bold mb-4">Contact {userName}</h2>
 
         {!hasValidEmail ? (
@@ -76,7 +76,7 @@ const AddIdeaModal = ({
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
+      <div className="bg-card p-6 rounded shadow-lg w-full max-w-md">
         <h2 className="text-xl font-bold mb-4">Add New Writing Idea</h2>
         <form onSubmit={onSubmit}>
           <input
@@ -364,9 +364,9 @@ function WritingBoard() {
   const totalPages = Math.ceil(writingIdeas.length / itemsPerPage);
 
   return (
-    <div className="min-h-screen p-4 bg-slate-50">
+    <div className="min-h-screen p-4 bg-background">
       <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
-        <h1 className="text-3xl font-bold text-gray-800">Writing Board</h1>
+        <h1 className="text-3xl font-bold text-foreground">Writing Board</h1>
         
         <button
           onClick={() => setShowModal(true)}
@@ -379,10 +379,10 @@ function WritingBoard() {
 
       {/* Loading and Error States */}
       {status === "loading" && (
-        <div className="mb-6 p-4 rounded-lg bg-white border border-gray-200 shadow-sm">
+        <div className="mb-6 p-4 rounded-lg bg-card border border-border shadow-sm">
           <div className="flex items-center gap-3">
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-            <span className="text-gray-600">Loading writing ideas from MongoDB…</span>
+            <span className="text-muted-foreground">Loading writing ideas from MongoDB…</span>
           </div>
         </div>
       )}
@@ -411,8 +411,8 @@ function WritingBoard() {
 
       {/* Ideas Table */}
       {writingIdeas.length === 0 && status !== "loading" ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <p className="text-gray-500 text-lg">No writing ideas yet. Be the first to share!</p>
+        <div className="bg-card rounded-lg shadow p-8 text-center">
+          <p className="text-muted-foreground text-lg">No writing ideas yet. Be the first to share!</p>
           <button
             onClick={() => setShowModal(true)}
             className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium"
@@ -422,32 +422,32 @@ function WritingBoard() {
         </div>
       ) : (
         <>
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-card rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-border">
+                <thead className="bg-background">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Title
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Description
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Link
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Likes
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       User
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Contact
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-card divide-y divide-border">
                   {paginatedIdeas.map((idea) => {
                     // Get email with fallback
                     const ownerEmail = idea.ownerEmail || "";
@@ -471,12 +471,12 @@ function WritingBoard() {
                     }
                     
                     return (
-                      <tr key={idea.id} className="hover:bg-gray-50">
+                      <tr key={idea.id} className="hover:bg-background">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-medium text-gray-900">{idea.title}</div>
+                          <div className="font-medium text-foreground">{idea.title}</div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-gray-700 max-w-xs">{idea.description}</div>
+                          <div className="text-muted-foreground max-w-xs">{idea.description}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {idea.link && isValidUrl(idea.link) ? (
@@ -489,22 +489,22 @@ function WritingBoard() {
                               View ↗
                             </a>
                           ) : (
-                            <span className="text-gray-400">—</span>
+                            <span className="text-muted-foreground">—</span>
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <button
                             onClick={() => handleLike(idea)}
-                            className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-medium border border-blue-200 transition-colors"
+                            className="bg-background hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-medium border border-blue-200 transition-colors"
                             aria-label={`Like ${idea.title}. Current likes: ${idea.likes || 0}`}
                           >
                             ❤️ Like ({idea.likes || 0})
                           </button>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-gray-700">{idea.ownerName || "Anonymous"}</div>
+                          <div className="text-muted-foreground">{idea.ownerName || "Anonymous"}</div>
                           {ownerEmail && (
-                            <div className="text-xs text-gray-500">Email: {ownerEmail}</div>
+                            <div className="text-xs text-muted-foreground">Email: {ownerEmail}</div>
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -518,7 +518,7 @@ function WritingBoard() {
                             className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
                               hasEmail 
                                 ? "bg-green-600 hover:bg-green-700 text-white" 
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                : "bg-gray-300 text-muted-foreground cursor-not-allowed"
                             }`}
                             disabled={!hasEmail}
                             aria-label={hasEmail ? `Contact ${idea.ownerName || 'post owner'}` : "Contact unavailable"}
@@ -541,17 +541,17 @@ function WritingBoard() {
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="px-4 py-2 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                className="px-4 py-2 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-background"
               >
                 Previous
               </button>
-              <span className="text-gray-600">
+              <span className="text-muted-foreground">
                 Page {currentPage} of {totalPages}
               </span>
               <button
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="px-4 py-2 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                className="px-4 py-2 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-background"
               >
                 Next
               </button>

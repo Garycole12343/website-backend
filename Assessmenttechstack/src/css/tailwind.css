@@ -6,6 +6,13 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  .high-contrast {
+    color-scheme: dark;
+  }
+}
+
+
 /* CSS variables for light & dark themes */
 :root {
   --color-primary: #2563EB;
@@ -87,14 +94,55 @@
   --color-destructive-foreground: #FFFFFF;
 }
 
+.high-contrast {
+  --color-primary: #0000FF;
+  --color-primary-foreground: #FFFFFF;
+
+  --color-secondary: #FFFF00;
+  --color-secondary-foreground: #000000;
+
+  --color-accent: #FFFF00;
+  --color-accent-foreground: #000000;
+
+  --color-background: #000000;
+  --color-foreground: #FFFFFF;
+
+  --color-card: #000000;
+  --color-card-foreground: #FFFFFF;
+
+  --color-popover: #000000;
+  --color-popover-foreground: #FFFFFF;
+
+  --color-muted: #1A1A1A;
+  --color-muted-foreground: #FFFFFF;
+
+  --color-border: #FFFFFF;
+  --color-input: #FFFFFF;
+  --color-ring: #FFFF00;
+
+  --color-success: #00FF00;
+  --color-success-foreground: #000000;
+
+  --color-warning: #FFFF00;
+  --color-warning-foreground: #000000;
+
+  --color-error: #FF0000;
+  --color-error-foreground: #FFFFFF;
+
+  --color-destructive: #FF0000;
+  --color-destructive-foreground: #FFFFFF;
+  
+  --radius: 0px;
+}
+
 /* Base styles */
 * {
-  border-color: #E5E7EB;
+  border-color: var(--color-border);
 }
 
 body {
-  background-color: #FFFFFF;
-  color: #1F2937;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
   font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-feature-settings: "rlig" 1, "calt" 1;
 }

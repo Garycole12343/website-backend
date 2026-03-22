@@ -77,29 +77,51 @@ const SkillsPage = () => {
 
   // Effect to update currentResources based on selection or search
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      if (selectedSkill) {
-        const category = skillCategories.find((s) => s.name === selectedSkill);
-        if (category) {
-          setCurrentResources(allResourcesRedux[category.key] || []);
-        } else {
-          setCurrentResources([]);
-        }
-      } else {
-        // If no skill selected and no search, show nothing or a default message
+    const fetchResources = async () => {
+      // If neither searching nor a category is selected, clear resources
+      if (!searchTerm.trim() && !selectedSkill) {
         setCurrentResources([]);
+        return;
       }
-    } else {
-      // If searching, use getAllResources
-      const searchLower = searchTerm.toLowerCase();
-      const filtered = getAllResources.filter(
-        (resource) =>
-          resource.title?.toLowerCase().includes(searchLower) ||
-          resource.description?.toLowerCase().includes(searchLower) ||
-          resource.category?.toLowerCase().includes(searchLower)
-      );
-      setCurrentResources(filtered);
-    }
+
+      try {
+        let url = "/resources";
+        const params = new URLSearchParams();
+        
+        if (selectedSkill) {
+          params.append("category", selectedSkill);
+        }
+        
+        if (searchTerm.trim()) {
+          params.append("search", searchTerm.trim());
+        }
+
+        const response = await apiClient.get(`${url}?${params.toString()}`);
+        setCurrentResources(response.data.resources || []);
+      } catch (error) {
+        console.error("Error fetching resources:", error);
+        // Fallback to local filtering if API fails (optional, but good for robustness)
+        if (!searchTerm.trim()) {
+          if (selectedSkill) {
+            const category = skillCategories.find((s) => s.name === selectedSkill);
+            if (category) {
+              setCurrentResources(allResourcesRedux[category.key] || []);
+            }
+          }
+        } else {
+          const searchLower = searchTerm.toLowerCase();
+          const filtered = getAllResources.filter(
+            (resource) =>
+              resource.title?.toLowerCase().includes(searchLower) ||
+              resource.description?.toLowerCase().includes(searchLower) ||
+              resource.category?.toLowerCase().includes(searchLower)
+          );
+          setCurrentResources(filtered);
+        }
+      }
+    };
+
+    fetchResources();
   }, [selectedSkill, searchTerm, getAllResources, allResourcesRedux, skillCategories]);
 
 
@@ -191,14 +213,14 @@ const SkillsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-4 py-10">
         {/* SEARCH BAR */}
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Skills Library</h1>
-              <p className="text-gray-600">
+              <h1 className="text-3xl font-bold text-foreground mb-2">Skills Library</h1>
+              <p className="text-muted-foreground">
                 Select a skill category to view resources or discuss ideas with the community.
               </p>
             </div>
@@ -209,14 +231,14 @@ const SkillsPage = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search resources across all skills..."
-                  className="w-full px-4 py-3 pl-10 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                  className="w-full px-4 py-3 pl-10 pr-10 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
                 />
-                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">🔍</div>
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">🔍</div>
                 {searchTerm && (
                   <button
                     type="button"
                     onClick={clearSearch}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                   >
                     ✕
                   </button>
@@ -225,7 +247,7 @@ const SkillsPage = () => {
             </form>
           </div>
           {isSearching && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="bg-background border border-blue-200 rounded-lg p-4 mb-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-blue-800">🔍 Searching for: "{searchTerm}"</p>
@@ -261,8 +283,8 @@ const SkillsPage = () => {
                   isActive
                     ? "bg-blue-600 text-white border-blue-600 shadow-md"
                     : hasSearchMatch
-                    ? "bg-blue-50 border-blue-200 shadow-sm hover:shadow-md"
-                    : "bg-white border-slate-300 shadow-sm hover:shadow-md"
+                    ? "bg-background border-blue-200 shadow-sm hover:shadow-md"
+                    : "bg-card border-border shadow-sm hover:shadow-md"
                 } ${hasSearchMatch ? "ring-2 ring-blue-100" : ""}`}
               >
                 <div className="flex items-center justify-between mb-1">
@@ -298,11 +320,11 @@ const SkillsPage = () => {
                 {isSearching ? `Search Results ${selectedSkill ? `in ${selectedSkill}` : ""}` : `Resources for ${selectedSkill}`}
               </h2>
               <div className="flex items-center gap-4">
-                <span className="text-slate-600">
+                <span className="text-muted-foreground">
                   {currentResources.length} item{currentResources.length !== 1 ? "s" : ""}
                 </span>
                 {(selectedSkill || isSearching) && (
-                  <button onClick={clearAll} className="text-sm text-slate-600 hover:text-slate-800">
+                  <button onClick={clearAll} className="text-sm text-muted-foreground hover:text-muted-foreground">
                     Clear All
                   </button>
                 )}
@@ -313,7 +335,7 @@ const SkillsPage = () => {
               {currentResources.map((resource) => (
                 <div
                   key={resource.id}
-                  className="p-4 rounded-xl border bg-white shadow-sm hover:shadow-md transition flex flex-col justify-between"
+                  className="p-4 rounded-xl border bg-card shadow-sm hover:shadow-md transition flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-start justify-between mb-3">
@@ -325,7 +347,7 @@ const SkillsPage = () => {
                       )}
                     </div>
                     {resource.description && (
-                      <p className="text-sm text-slate-600 mb-3 line-clamp-3">{resource.description}</p>
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-3">{resource.description}</p>
                     )}
                     <div className="flex justify-between items-center">
                       {resource.link && (
@@ -338,26 +360,30 @@ const SkillsPage = () => {
                           View resource
                         </a>
                       )}
-                      {resource.user && <span className="text-xs text-slate-500">By: {resource.user}</span>}
+                      {resource.user && (
+                        <span className="text-xs text-muted-foreground">
+                          By: <Link to={`/profile/${encodeURIComponent(resource.user)}`} className="text-blue-600 hover:underline">{resource.user}</Link>
+                        </span>
+                      )}
                     </div>
                     {resource.likes !== undefined && resource.likes > 0 && (
                       <div className="mt-2">
-                        <span className="text-sm text-slate-600">👍 {resource.likes} likes</span>
+                        <span className="text-sm text-muted-foreground">👍 {resource.likes} likes</span>
                       </div>
                     )}
                   </div>
 
                   {/* REVIEWS SECTION */}
-                  <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="mt-4 pt-4 border-t border-border">
                     <h4 className="text-md font-semibold mb-3">Reviews ({resource.reviews?.length || 0})</h4>
                     {/* Display Existing Reviews */}
                     <div className="max-h-48 overflow-y-auto mb-4 pr-2">
                       {resource.reviews && resource.reviews.length > 0 ? (
                         resource.reviews.map((review) => (
-                          <div key={review.reviewId} className="mb-3 pb-3 border-b border-gray-100 last:border-b-0 last:pb-0">
+                          <div key={review.reviewId} className="mb-3 pb-3 border-b border-border last:border-b-0 last:pb-0">
                             <div className="flex items-center justify-between mb-1">
                               <span className="font-medium text-sm">{review.userName}</span>
-                              <span className="text-xs text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</span>
+                              <span className="text-xs text-muted-foreground">{new Date(review.createdAt).toLocaleDateString()}</span>
                             </div>
                             <div className="flex items-center mb-1">
                               {[...Array(5)].map((_, i) => (
@@ -366,11 +392,11 @@ const SkillsPage = () => {
                                 </span>
                               ))}
                             </div>
-                            <p className="text-sm text-gray-700">{review.comment}</p>
+                            <p className="text-sm text-muted-foreground">{review.comment}</p>
                           </div>
                         ))
                       ) : (
-                        <p className="text-sm text-gray-500">No reviews yet. Be the first!</p>
+                        <p className="text-sm text-muted-foreground">No reviews yet. Be the first!</p>
                       )}
                     </div>
 
@@ -380,16 +406,16 @@ const SkillsPage = () => {
                     )}
 
                     {userEmail && (
-                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                      <div className="bg-background p-3 rounded-lg border border-border">
                         <h5 className="font-semibold mb-2 text-sm">Leave a Review</h5>
                         <div className="grid grid-cols-2 gap-3 mb-3">
                           <div>
-                            <label htmlFor={`rating-${resource.id}`} className="block text-xs font-medium text-gray-700 mb-1">Rating</label>
+                            <label htmlFor={`rating-${resource.id}`} className="block text-xs font-medium text-muted-foreground mb-1">Rating</label>
                             <select
                               id={`rating-${resource.id}`}
                               value={newReviewData[resource.id]?.rating || ""}
                               onChange={(e) => handleReviewInputChange(resource.id, 'rating', e.target.value)}
-                              className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                              className="w-full px-2 py-1.5 border border-border rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
                             >
                               <option value="" disabled>Select rating</option>
                               {[1, 2, 3, 4, 5].map(r => <option key={r} value={r}>{r} star{r > 1 ? 's' : ''}</option>)}
@@ -400,14 +426,14 @@ const SkillsPage = () => {
                           <input type="hidden" value={userName} />
                           {/* Comment field */}
                           <div className="col-span-2">
-                            <label htmlFor={`comment-${resource.id}`} className="block text-xs font-medium text-gray-700 mb-1">Comment</label>
+                            <label htmlFor={`comment-${resource.id}`} className="block text-xs font-medium text-muted-foreground mb-1">Comment</label>
                             <textarea
                               id={`comment-${resource.id}`}
                               rows="2"
                               value={newReviewData[resource.id]?.comment || ""}
                               onChange={(e) => handleReviewInputChange(resource.id, 'comment', e.target.value)}
                               placeholder="Share your thoughts..."
-                              className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                              className="w-full px-2 py-1.5 border border-border rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
                             ></textarea>
                           </div>
                         </div>
@@ -439,16 +465,16 @@ const SkillsPage = () => {
 
         {/* No Resources Found / Initial State Message */}
         {(!selectedSkill && !isSearching && currentResources.length === 0) && (
-          <div className="bg-white p-6 rounded-xl border shadow-sm text-center">
-            <p className="text-slate-600">
+          <div className="bg-card p-6 rounded-xl border shadow-sm text-center">
+            <p className="text-muted-foreground">
               Please select a skill category from above or use the search bar to find resources.
             </p>
           </div>
         )}
 
         {(selectedSkill || isSearching) && currentResources.length === 0 && (
-           <div className="bg-white p-6 rounded-xl border shadow-sm">
-                <p className="text-slate-600 mb-4">
+           <div className="bg-card p-6 rounded-xl border shadow-sm">
+                <p className="text-muted-foreground mb-4">
                   {isSearching
                     ? `No resources found matching "${searchTerm}"`
                     : `No resources have been shared for ${selectedSkill} yet.`}
@@ -464,7 +490,7 @@ const SkillsPage = () => {
                   )}
                   <button
                     onClick={clearAll}
-                    className="bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300"
+                    className="bg-gray-200 text-muted-foreground px-4 py-2 rounded hover:bg-gray-300"
                   >
                     {isSearching ? "Clear Search" : "Browse All Skills"}
                   </button>
@@ -474,7 +500,7 @@ const SkillsPage = () => {
 
 
         {!selectedSkill && !isSearching && (
-          <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
+          <div className="bg-background p-6 rounded-xl border border-blue-200">
             <p className="text-blue-800 font-medium">💡 Tip: Click a skill card above to see matching resources.</p>
             <p className="text-blue-600 text-sm mt-2">
               Each skill has its own discussion board where you can share and discover resources.

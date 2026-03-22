@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import Input from '../../../components/ui/Input';
-import Select from '../../../components/ui/Select';
-import Button from '../../../components/ui/Button';
+import Input from '../../../components/Input';
+import Select from '../../../components/Select';
+import Button from '../../../components/Button';
 import Icon from '../../../components/AppIcon';
 
 const ContactForm = () => {

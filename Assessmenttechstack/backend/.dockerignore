@@ -1,0 +1,10 @@
+venv
+__pycache__
+flask_session
+*.pyc
+*.pyo
+*.pyd
+.env
+.dockerignore
+Dockerfile
+uploads

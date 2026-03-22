@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Icon from '../../../components/AppIcon';
 import Image from '../../../components/AppImage';
 
@@ -105,7 +105,11 @@ const ResourceCard = ({ resource }) => {
         </p>
 
         <div className="flex items-center justify-between pt-3 border-t border-border">
-          <div className="flex items-center gap-2">
+          <Link 
+            to={`/profile/${encodeURIComponent(resource?.creatorEmail || resource?.creatorName)}`}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="w-8 h-8 rounded-full overflow-hidden bg-muted flex-shrink-0">
               <Image
                 src={resource?.creatorAvatar}
@@ -114,7 +118,7 @@ const ResourceCard = ({ resource }) => {
               />
             </div>
             <span className="text-sm text-foreground font-medium">{resource?.creatorName}</span>
-          </div>
+          </Link>
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">

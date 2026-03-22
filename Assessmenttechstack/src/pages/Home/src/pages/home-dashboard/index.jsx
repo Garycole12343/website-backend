@@ -242,7 +242,7 @@ const HomeDashboard = () => {
         />
       </Helmet>
 
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-background">
         <Header />
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12">
@@ -264,10 +264,10 @@ const HomeDashboard = () => {
                     />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-heading font-bold text-gray-900">
+                    <h2 className="text-2xl font-heading font-bold text-foreground">
                       Explore Categories
                     </h2>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Find resources by skill area
                     </p>
                   </div>
@@ -291,10 +291,10 @@ const HomeDashboard = () => {
                     />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-heading font-bold text-gray-900">
+                    <h2 className="text-2xl font-heading font-bold text-foreground">
                       Featured Resources
                     </h2>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Top rated content this week
                     </p>
                   </div>
@@ -318,10 +318,10 @@ const HomeDashboard = () => {
                     />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-heading font-bold text-gray-900">
+                    <h2 className="text-2xl font-heading font-bold text-foreground">
                       Recent Activity
                     </h2>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Stay updated with community activity
                     </p>
                   </div>
@@ -348,10 +348,10 @@ const HomeDashboard = () => {
                     />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-heading font-bold text-gray-900">
+                    <h2 className="text-2xl font-heading font-bold text-foreground">
                       Platform Statistics
                     </h2>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Real-time insights into our growing community
                     </p>
                   </div>

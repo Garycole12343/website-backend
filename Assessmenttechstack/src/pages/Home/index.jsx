@@ -101,7 +101,7 @@ function Home() {
       path: "/design",
       titleClass: "text-blue-700",
       hoverBorder: "hover:border-blue-200",
-      iconBg: "bg-blue-500",
+      iconBg: "bg-gray-500",
     },
     {
       name: "JavaScript",
@@ -129,123 +129,27 @@ function Home() {
       path: "/react",
       titleClass: "text-indigo-700",
       hoverBorder: "hover:border-indigo-200",
-      iconBg: "bg-indigo-500",
+      iconBg: "bg-gray-500",
     },
     {
       name: "Writing",
       path: "/writing",
-      titleClass: "text-gray-700",
-      hoverBorder: "hover:border-gray-200",
+      titleClass: "text-muted-foreground",
+      hoverBorder: "hover:border-border",
       iconBg: "bg-gray-500",
     },
   ];
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-50 to-indigo-100 py-12 px-4"
-      style={{
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
+      className="min-h-screen bg-background transition-colors duration-300 py-12 px-4"
     >
-      {/* Navigation Bar */}
-      <nav className="bg-white shadow-lg rounded-xl mb-12 p-4 flex justify-between items-center">
-        <img src={logo} alt="Community Hub Logo" className="h-12 md:h-16 w-auto" />
-
-        <div className="relative">
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-blue-700 transition-all shadow-lg"
-          >
-            Share Resource
-          </button>
-
-          {menuOpen && (
-            <div className="absolute right-0 mt-2 bg-white shadow-2xl rounded-xl p-4 w-60 border border-slate-200">
-              <div className="grid grid-cols-1 gap-1">
-                <Link
-                  to="/ai-tools"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-3 text-purple-700 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition"
-                >
-                  AI Tools
-                </Link>
-                <Link
-                  to="/art"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-3 text-pink-700 hover:bg-pink-50 hover:text-pink-600 rounded-lg transition"
-                >
-                  Art
-                </Link>
-                <Link
-                  to="/coding"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-3 text-green-700 hover:bg-green-50 hover:text-green-600 rounded-lg transition"
-                >
-                  Coding
-                </Link>
-                <Link
-                  to="/cooking"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-3 text-orange-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition"
-                >
-                  Cooking
-                </Link>
-                <Link
-                  to="/design"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-3 text-blue-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition"
-                >
-                  Design
-                </Link>
-                <Link
-                  to="/javascript"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-3 text-yellow-700 hover:bg-yellow-50 hover:text-yellow-600 rounded-lg transition"
-                >
-                  JavaScript
-                </Link>
-                <Link
-                  to="/music"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-3 text-red-700 hover:bg-red-50 hover:text-red-600 rounded-lg transition"
-                >
-                  Music
-                </Link>
-                <Link
-                  to="/photography"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-3 text-teal-700 hover:bg-teal-50 hover:text-teal-600 rounded-lg transition"
-                >
-                  Photography
-                </Link>
-                <Link
-                  to="/react"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-3 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition"
-                >
-                  React
-                </Link>
-                <Link
-                  to="/writing"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-600 rounded-lg transition"
-                >
-                  Writing
-                </Link>
-              </div>
-            </div>
-          )}
-        </div>
-      </nav>
-
       {/* Hero Section */}
       <div className="max-w-5xl mx-auto text-center mb-16">
-        <h1 className="text-6xl font-extrabold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-600 tracking-tight">
+        <h1 className="text-6xl font-extrabold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary tracking-tight">
           Welcome to the SkillSphere
         </h1>
-        <p className="text-xl text-gray-700 mb-8 max-w-2xl mx-auto leading-relaxed">
+        <p className="text-xl text-foreground/80 mb-8 max-w-2xl mx-auto leading-relaxed">
           Share and discover resources across different boards. Connect with fellow creators, learners, and innovators.
         </p>
       </div>
@@ -255,7 +159,7 @@ function Home() {
         <div className="max-w-6xl mx-auto mb-20">
           <div className="flex items-center justify-center mb-8 space-x-3">
             <span className="text-2xl">✨</span>
-            <h2 className="text-3xl font-bold text-gray-900">Suggested For You</h2>
+            <h2 className="text-3xl font-bold text-foreground">Suggested For You</h2>
             
           </div>
           
@@ -265,25 +169,27 @@ function Home() {
               const score = Math.round(match.similarity_score * 100);
               
               return (
-                <div key={user.id || index} className="bg-white/80 backdrop-blur-md p-6 rounded-xl shadow-lg border border-purple-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div key={user.id || index} className="bg-card p-6 rounded-xl shadow-lg border border-border hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-lg">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-lg">
                         {user.firstName?.[0] || user.email?.[0] || "U"}
                       </div>
                       <div>
-                        <h3 className="font-bold text-gray-900">{user.firstName} {user.lastName}</h3>
-                        <p className="text-xs text-gray-500 capitalize">{user.skillLevel || "Member"}</p>
+                        <Link to={`/profile/${encodeURIComponent(user.email)}`} className="hover:underline">
+                          <h3 className="font-bold text-foreground">{user.firstName} {user.lastName}</h3>
+                        </Link>
+                        <p className="text-xs text-muted-foreground capitalize">{user.skillLevel || "Member"}</p>
                       </div>
                     </div>
                     <div className="flex flex-col items-end">
-                      <span className="text-lg font-bold text-green-600">{score}%</span>
-                      <span className="text-xs text-gray-400">Match</span>
+                      <span className="text-lg font-bold text-success">{score}%</span>
+                      <span className="text-xs text-muted-foreground">Match</span>
                     </div>
                   </div>
                   
                   <div className="mb-6">
-                    <p className="text-sm text-gray-600 line-clamp-2">
+                    <p className="text-sm text-foreground/80 line-clamp-2">
                       {user.profile?.bio || `Interested in ${Array.isArray(user.interests) ? user.interests.join(", ") : (user.interests || "learning")}...`}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -291,7 +197,7 @@ function Home() {
                         ? user.profile.skills.split('\n') 
                         : (Array.isArray(user.profile?.skills) ? user.profile.skills : [])
                       ).filter(Boolean).slice(0, 3).map((skill, i) => (
-                        <span key={i} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-md">
+                        <span key={i} className="px-2 py-1 bg-muted text-muted-foreground text-xs rounded-md">
                           {skill}
                         </span>
                       ))}
@@ -300,11 +206,11 @@ function Home() {
 
                   <button
                     onClick={() => handleConnect(user.email, user.firstName)}
-                    className="w-full py-2 bg-white border-2 border-purple-600 text-purple-600 font-semibold rounded-lg hover:bg-purple-600 hover:text-white transition-colors duration-200 flex items-center justify-center space-x-2"
+                    className="w-full py-2 bg-card border-2 border-primary text-primary font-semibold rounded-lg hover:bg-primary hover:text-primary-foreground transition-colors duration-200 flex items-center justify-center space-x-2"
                   >
                     <span>Connect</span>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                   </button>
                 </div>
@@ -316,14 +222,14 @@ function Home() {
 
       {/* Features Grid */}
       <div className="max-w-6xl mx-auto mt-10">
-        <h2 className="text-4xl font-bold text-center text-gray-900 mb-12">Explore Our Community Boards</h2>
+        <h2 className="text-4xl font-bold text-center text-foreground mb-12">Explore Our Community Boards</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {boards.map((board) => (
             <Link
               key={board.name}
               to={board.path}
-              className={`bg-white/90 backdrop-blur-sm rounded-xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 border border-white/20 ${board.hoverBorder}`}
+              className={`bg-card rounded-xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 border border-border ${board.hoverBorder}`}
             >
               <div className="flex items-center">
                 {/* Icon square */}
@@ -331,12 +237,12 @@ function Home() {
                   className={`w-12 h-12 rounded-lg ${board.iconBg} mr-4 shadow-sm ring-1 ring-black/10 flex items-center justify-center`}
                 >
                   {/* Inner mark (high contrast) */}
-                  <div className="w-6 h-6 rounded-md bg-white/90" />
+                  <div className="w-6 h-6 rounded-md bg-card/90" />
                 </div>
 
                 <div>
-                  <h3 className={`text-xl font-bold ${board.titleClass}`}>{board.name}</h3>
-                  <p className="text-gray-600 text-sm mt-1">Explore resources and discussions</p>
+                  <h3 className={`text-xl font-bold ${board.titleClass} dark:text-foreground`}>{board.name}</h3>
+                  <p className="text-muted-foreground text-sm mt-1">Explore resources and discussions</p>
                 </div>
               </div>
             </Link>
@@ -346,21 +252,21 @@ function Home() {
 
       {/* Call to Action */}
       <div className="max-w-4xl mx-auto mt-20 text-center">
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-10 shadow-2xl border border-white/20">
-          <h2 className="text-4xl font-bold text-gray-800 mb-4">Join Our Growing Community</h2>
-          <p className="text-gray-600 text-lg mb-8 max-w-2xl mx-auto">
+        <div className="bg-card rounded-2xl p-10 shadow-2xl border border-border">
+          <h2 className="text-4xl font-bold text-foreground mb-4">Join Our Growing Community</h2>
+          <p className="text-muted-foreground text-lg mb-8 max-w-2xl mx-auto">
             Thousands of creators, developers, artists, and innovators are already sharing knowledge and resources.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/skills"
-              className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-blue-700 transition-all shadow-lg text-lg"
+              className="bg-primary text-primary-foreground px-8 py-3 rounded-lg font-semibold hover:opacity-90 transition-all shadow-lg text-lg"
             >
               Explore Skills
             </Link>
             <Link
               to="/register"
-              className="bg-white text-purple-600 px-8 py-3 rounded-lg font-semibold hover:bg-purple-50 transition-all shadow-lg border border-purple-200 text-lg"
+              className="bg-card text-primary px-8 py-3 rounded-lg font-semibold hover:bg-muted transition-all shadow-lg border border-border text-lg"
             >
               Sign Up Free
             </Link>
@@ -372,7 +278,7 @@ function Home() {
       <div className="fixed bottom-6 right-6 z-50">
         <Link
           to="/contact"
-          className="group flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-2xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-110"
+          className="group flex items-center justify-center w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-2xl hover:opacity-90 transition-all duration-300 transform hover:scale-110"
           title="Contact Us"
         >
           <svg
@@ -391,9 +297,9 @@ function Home() {
           </svg>
 
           {/* Tooltip on hover */}
-          <span className="absolute right-16 w-auto px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+          <span className="absolute right-16 w-auto px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xl border border-border whitespace-nowrap">
             Contact Us
-            <span className="absolute top-1/2 right-[-6px] transform -translate-y-1/2 border-l-8 border-l-gray-900 border-y-8 border-y-transparent"></span>
+            <span className="absolute top-1/2 right-[-6px] transform -translate-y-1/2 border-l-8 border-l-border border-y-8 border-y-transparent"></span>
           </span>
         </Link>
       </div>
@@ -401,17 +307,17 @@ function Home() {
       {/* Stats Section */}
       <div className="max-w-6xl mx-auto mt-20">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 text-center">
-            <div className="text-4xl font-bold text-purple-600 mb-2">1000+</div>
-            <div className="text-gray-700 font-medium">Active Members</div>
+          <div className="bg-card rounded-xl p-6 text-center border border-border shadow-md">
+            <div className="text-4xl font-bold text-primary mb-2">1000+</div>
+            <div className="text-foreground/80 font-medium">Active Members</div>
           </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 text-center">
-            <div className="text-4xl font-bold text-blue-600 mb-2">500+</div>
-            <div className="text-gray-700 font-medium">Resources Shared</div>
+          <div className="bg-card rounded-xl p-6 text-center border border-border shadow-md">
+            <div className="text-4xl font-bold text-secondary mb-2">500+</div>
+            <div className="text-foreground/80 font-medium">Resources Shared</div>
           </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 text-center">
-            <div className="text-4xl font-bold text-indigo-600 mb-2">50+</div>
-            <div className="text-gray-700 font-medium">Community Discussions</div>
+          <div className="bg-card rounded-xl p-6 text-center border border-border shadow-md">
+            <div className="text-4xl font-bold text-primary mb-2">50+</div>
+            <div className="text-foreground/80 font-medium">Community Discussions</div>
           </div>
         </div>
       </div>

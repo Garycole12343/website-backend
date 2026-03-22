@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import Input from "../../../components/Input";
 import Button from "../../../components/Button";
 import Icon from "../../../components/AppIcon";
+import { Checkbox } from "../../../components/Checkbox";
+import { Link } from "react-router-dom";
 
 const RegistrationForm = () => {
   const navigate = useNavigate();
@@ -14,7 +16,9 @@ const RegistrationForm = () => {
     password: "",
     confirmPassword: "",
     interests: [],
-    skillLevel: ""
+    skillLevel: "",
+    avatar: null,
+    agreeToTerms: false,
   });
 
   const [errors, setErrors] = useState({});
@@ -68,6 +72,14 @@ const RegistrationForm = () => {
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setFormData((prev) => ({ ...prev, avatar: file }));
+      if (errors.avatar) setErrors((prev) => ({ ...prev, avatar: "" }));
+    }
+  };
+
   const handleInterestToggle = (interest) => {
     setFormData((prev) => ({
       ...prev,
@@ -103,6 +115,9 @@ const RegistrationForm = () => {
 
     if (formData.interests.length === 0) newErrors.interests = "Please select at least one interest";
     if (!formData.skillLevel) newErrors.skillLevel = "Please select your skill level";
+    
+    if (!formData.avatar) newErrors.avatar = "Profile picture is mandatory";
+    if (!formData.agreeToTerms) newErrors.agreeToTerms = "You must agree to the terms to continue";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -118,25 +133,26 @@ const RegistrationForm = () => {
     try {
       const { firstName, lastName } = splitFullName(formData.fullName);
 
-      const payload = {
-        firstName,
-        lastName,
-        email: formData.email.trim().toLowerCase(),
-        password: formData.password,
-        interests: formData.interests,
-        skillLevel: formData.skillLevel
-      };
+      const data = new FormData();
+      data.append("firstName", firstName);
+      data.append("lastName", lastName);
+      data.append("email", formData.email.trim().toLowerCase());
+      data.append("password", formData.password);
+      data.append("interests", JSON.stringify(formData.interests));
+      data.append("skillLevel", formData.skillLevel);
+      if (formData.avatar) {
+        data.append("file", formData.avatar);
+      }
 
       const response = await fetch("/api/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: data
       });
 
-      const data = await response.json().catch(() => ({}));
+      const responseData = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        setErrors((prev) => ({ ...prev, submit: data.message || "Registration failed" }));
+        setErrors((prev) => ({ ...prev, submit: responseData.message || responseData.error || "Registration failed" }));
         return;
       }
 
@@ -223,6 +239,26 @@ const RegistrationForm = () => {
           required
           disabled={isLoading}
         />
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-foreground">
+            Profile Picture <span className="text-error">*</span>
+          </label>
+          <div className={`flex items-center gap-4 p-3 border-2 border-dashed rounded-lg transition-all ${
+            errors.avatar ? "border-error bg-error/5" : "border-border hover:border-primary/50"
+          }`}>
+            <Icon name="Upload" size={20} className="text-muted-foreground" />
+            <input
+              type="file"
+              accept="image/*"
+              required
+              onChange={handleFileChange}
+              disabled={isLoading}
+              className="text-sm text-muted-foreground file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer disabled:opacity-50"
+            />
+          </div>
+          {errors.avatar && <p className="text-xs text-error">{errors.avatar}</p>}
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -288,9 +324,33 @@ const RegistrationForm = () => {
         </div>
       </div>
 
-      <Button type="submit" fullWidth loading={isLoading} disabled={isLoading}>
-        {isLoading ? "Creating Account..." : "Create Account"}
-      </Button>
+      <div className="space-y-4">
+        <Checkbox
+          checked={formData.agreeToTerms}
+          onChange={(e) => {
+            setFormData((prev) => ({ ...prev, agreeToTerms: e.target.checked }));
+            if (errors.agreeToTerms) setErrors((prev) => ({ ...prev, agreeToTerms: "" }));
+          }}
+          error={errors.agreeToTerms}
+          disabled={isLoading}
+        >
+          <span className="text-sm text-muted-foreground">
+            I agree to the{" "}
+            <Link to="/terms" className="text-primary hover:underline" target="_blank">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link to="/privacy" className="text-primary hover:underline" target="_blank">
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </Checkbox>
+
+        <Button type="submit" fullWidth loading={isLoading} disabled={isLoading}>
+          {isLoading ? "Creating Account..." : "Create Account"}
+        </Button>
+      </div>
     </form>
   );
 };

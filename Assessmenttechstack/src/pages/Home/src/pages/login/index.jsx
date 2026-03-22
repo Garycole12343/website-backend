@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import Image from '../../components/AppImage';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
-import { Checkbox } from '../../components/ui/Checkbox';
+import Button from '../../components/Button';
+import Input from '../../components/Input';
+import { Checkbox } from '../../components/Checkbox';
 import Header from '../../components/navigation/Header';
 
 const Login = () => {

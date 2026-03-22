@@ -14,7 +14,7 @@ const CategoryHeader = ({ category, totalResources, description }) => {
   const categoryColors = {
     art: 'bg-purple-500/10 text-purple-600',
     baking: 'bg-amber-500/10 text-amber-600',
-    coding: 'bg-blue-500/10 text-blue-600',
+    coding: 'bg-gray-500/10 text-blue-600',
     sports: 'bg-green-500/10 text-green-600',
     music: 'bg-pink-500/10 text-pink-600',
     ai: 'bg-violet-500/10 text-violet-600'

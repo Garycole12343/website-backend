@@ -1,13 +1,10 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import Header from "../components/navigation/Header";
 import RegistrationForm from "./register/components/RegistrationForm"; // <-- adjust if needed
 
 const Register = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header />
-
       <main className="flex-1 flex items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
         <div className="w-full max-w-md">
           <div className="bg-card border border-border rounded-lg shadow-elevated p-8">

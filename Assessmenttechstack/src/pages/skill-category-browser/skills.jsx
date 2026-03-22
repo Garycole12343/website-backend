@@ -17,7 +17,7 @@ const SkillsPage = () => {
           <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-gray-900 via-blue-600 to-purple-600 bg-clip-text text-transparent mb-6">
             Skills Library
           </h1>
-          <p className="text-xl md:text-2xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
             4 × 12 grid of skills (48 total)
           </p>
         </div>
@@ -35,7 +35,7 @@ const SkillsPage = () => {
                 style={{ backgroundColor: skill.color }}
               >
                 <div className="text-center p-4 opacity-80 group-hover:opacity-100 transition-opacity">
-                  <div className="w-12 h-12 mx-auto mb-2 bg-white/20 rounded-xl flex items-center justify-center">
+                  <div className="w-12 h-12 mx-auto mb-2 bg-card/20 rounded-xl flex items-center justify-center">
                     <span className="font-bold text-white text-lg">
                       {skill.id}
                     </span>
@@ -54,7 +54,7 @@ const SkillsPage = () => {
         </div>
 
         <div className="text-center mt-12">
-          <p className="text-gray-600 mb-4">4 columns × 12 rows = 48 skills</p>
+          <p className="text-muted-foreground mb-4">4 columns × 12 rows = 48 skills</p>
         </div>
       </main>
     </div>

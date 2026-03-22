@@ -1,5 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Header from "../components/navigation/Header";
+import axios from "axios";
+
+// Placeholder for a generic API service call function
+const apiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  withCredentials: true,
+});
 
 const SearchPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -11,23 +18,18 @@ const SearchPage = () => {
     type: "all",
   });
 
-  const allSkills = [
-    { id: 1, name: "React Hooks", category: "web", difficulty: "intermediate", type: "video", description: "Master React hooks with practical examples" },
-    { id: 2, name: "Node.js API", category: "web", difficulty: "advanced", type: "course", description: "Build REST APIs with Express" },
-    { id: 3, name: "Figma Design", category: "design", difficulty: "beginner", type: "tutorial", description: "UI/UX design fundamentals" },
-    { id: 4, name: "Python ML", category: "data", difficulty: "intermediate", type: "course", description: "Machine learning with scikit-learn" },
-    { id: 5, name: "Docker Basics", category: "devops", difficulty: "beginner", type: "video", description: "Containerization fundamentals" },
-    { id: 6, name: "Tailwind CSS", category: "web", difficulty: "beginner", type: "tutorial", description: "Rapid UI development with utility classes" },
-    { id: 7, name: "Database Design", category: "data", difficulty: "intermediate", type: "course", description: "SQL and NoSQL database fundamentals" },
-    { id: 8, name: "Git Mastery", category: "devops", difficulty: "beginner", type: "video", description: "Version control with Git and GitHub" },
-  ];
-
   const categories = [
     { value: "all", label: "All Categories" },
-    { value: "web", label: "Web Development" },
-    { value: "design", label: "Design" },
-    { value: "data", label: "Data Science" },
-    { value: "devops", label: "DevOps" },
+    { value: "JavaScript", label: "JavaScript" },
+    { value: "React", label: "React" },
+    { value: "Coding", label: "Coding" },
+    { value: "Art", label: "Art" },
+    { value: "Music", label: "Music" },
+    { value: "Design", label: "Design" },
+    { value: "Photography", label: "Photography" },
+    { value: "Cooking", label: "Cooking" },
+    { value: "AI Tools", label: "AI Tools" },
+    { value: "Writing", label: "Writing" },
   ];
 
   const difficulties = [
@@ -49,31 +51,37 @@ const SearchPage = () => {
     performSearch();
   };
 
-  const performSearch = () => {
+  const performSearch = async () => {
     setLoading(true);
-    setTimeout(() => {
-      let filtered = allSkills;
-
+    try {
+      const params = new URLSearchParams();
       if (searchQuery.trim()) {
-        filtered = filtered.filter(skill =>
-          skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          skill.description.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+        params.append("search", searchQuery.trim());
+      }
+      if (filters.category !== "all") {
+        params.append("category", filters.category);
       }
 
-      if (filters.category !== "all") {
-        filtered = filtered.filter(skill => skill.category === filters.category);
-      }
+      // Note: Backend currently only supports search and category. 
+      // Difficulty and Type would need additional backend support or local filtering.
+      const response = await apiClient.get(`/resources?${params.toString()}`);
+      let fetchedResults = response.data.resources || [];
+
+      // Optional: Local filtering for fields not yet handled by backend
       if (filters.difficulty !== "all") {
-        filtered = filtered.filter(skill => skill.difficulty === filters.difficulty);
+        fetchedResults = fetchedResults.filter(res => res.difficulty === filters.difficulty);
       }
       if (filters.type !== "all") {
-        filtered = filtered.filter(skill => skill.type === filters.type);
+        fetchedResults = fetchedResults.filter(res => res.type === filters.type);
       }
 
-      setResults(filtered);
+      setResults(fetchedResults);
+    } catch (error) {
+      console.error("Error performing search:", error);
+      alert("Failed to fetch search results.");
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const updateFilter = (filterType, value) => {
@@ -91,10 +99,10 @@ const SearchPage = () => {
       <Header />
       <main className="max-w-6xl mx-auto px-4 py-12">
         <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
+          <h1 className="text-5xl md:text-6xl font-bold text-foreground mb-6">
             Search Skills
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Find learning resources from our library
           </p>
         </div>
@@ -106,7 +114,7 @@ const SearchPage = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search skills, courses, tutorials..."
-              className="w-full p-6 text-xl border-2 border-gray-200 rounded-3xl focus:ring-4 focus:ring-blue-500 focus:border-blue-500 shadow-lg transition-all duration-300 pr-12"
+              className="w-full p-6 text-xl border-2 border-border rounded-3xl focus:ring-4 focus:ring-blue-500 focus:border-blue-500 shadow-lg transition-all duration-300 pr-12"
             />
             <button
               type="submit"
@@ -117,11 +125,11 @@ const SearchPage = () => {
           </div>
         </form>
 
-        <div className="flex flex-wrap gap-4 justify-center mb-12 p-6 rounded-2xl border border-gray-200 shadow-xl bg-white bg-opacity-80">
+        <div className="flex flex-wrap gap-4 justify-center mb-12 p-6 rounded-2xl border border-border shadow-xl bg-card bg-opacity-80">
           <select
             value={filters.category}
             onChange={(e) => updateFilter("category", e.target.value)}
-            className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white"
+            className="px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-blue-500 bg-card"
           >
             {categories.map((cat) => (
               <option key={cat.value} value={cat.value}>{cat.label}</option>
@@ -131,7 +139,7 @@ const SearchPage = () => {
           <select
             value={filters.difficulty}
             onChange={(e) => updateFilter("difficulty", e.target.value)}
-            className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white"
+            className="px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-blue-500 bg-card"
           >
             {difficulties.map((diff) => (
               <option key={diff.value} value={diff.value}>{diff.label}</option>
@@ -141,7 +149,7 @@ const SearchPage = () => {
           <select
             value={filters.type}
             onChange={(e) => updateFilter("type", e.target.value)}
-            className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white"
+            className="px-4 py-3 border border-border rounded-xl focus:ring-2 focus:ring-blue-500 bg-card"
           >
             {types.map((typeItem) => (
               <option key={typeItem.value} value={typeItem.value}>{typeItem.label}</option>
@@ -150,7 +158,7 @@ const SearchPage = () => {
 
           <button
             onClick={clearFilters}
-            className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-semibold transition-all duration-200"
+            className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-muted-foreground rounded-xl font-semibold transition-all duration-200"
           >
             Clear Filters
           </button>
@@ -159,14 +167,14 @@ const SearchPage = () => {
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <p className="mt-4 text-lg text-gray-600">Searching...</p>
+            <p className="mt-4 text-lg text-muted-foreground">Searching...</p>
           </div>
         ) : results.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {results.map((skill) => (
-              <div key={skill.id} className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{skill.name}</h3>
-                <p className="text-gray-600 mb-4">{skill.description}</p>
+              <div key={skill.id} className="bg-card p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-border">
+                <h3 className="text-xl font-bold text-foreground mb-2">{skill.name}</h3>
+                <p className="text-muted-foreground mb-4">{skill.description}</p>
                 <div className="flex flex-wrap gap-2 text-sm">
                   <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full">{skill.category}</span>
                   <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full">{skill.difficulty}</span>
@@ -177,11 +185,11 @@ const SearchPage = () => {
           </div>
         ) : (
           <div className="text-center py-20">
-            <svg className="w-24 h-24 mx-auto mb-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-24 h-24 mx-auto mb-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">No results found</h3>
-            <p className="text-gray-600 mb-8">Try adjusting your search terms or filters</p>
+            <h3 className="text-2xl font-bold text-foreground mb-2">No results found</h3>
+            <p className="text-muted-foreground mb-8">Try adjusting your search terms or filters</p>
             <button
               onClick={clearFilters}
               className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"

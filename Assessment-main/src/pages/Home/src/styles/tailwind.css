@@ -1,0 +1,122 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CSS variables for light & dark themes */
+@layer base {
+  :root {
+    --color-primary: #2563EB;
+    --color-primary-foreground: #FFFFFF;
+
+    --color-secondary: #7C3AED;
+    --color-secondary-foreground: #FFFFFF;
+
+    --color-accent: #F59E0B;
+    --color-accent-foreground: #1F2937;
+
+    --color-background: #FAFBFC;
+    --color-foreground: #1F2937;
+
+    --color-card: #FFFFFF;
+    --color-card-foreground: #1F2937;
+
+    --color-popover: #FFFFFF;
+    --color-popover-foreground: #1F2937;
+
+    --color-muted: #F3F4F6;
+    --color-muted-foreground: #6B7280;
+
+    --color-border: #E5E7EB;
+    --color-input: #E5E7EB;
+    --color-ring: #2563EB;
+
+    --color-success: #10B981;
+    --color-success-foreground: #FFFFFF;
+
+    --color-warning: #F59E0B;
+    --color-warning-foreground: #1F2937;
+
+    --color-error: #EF4444;
+    --color-error-foreground: #FFFFFF;
+
+    --color-destructive: #EF4444;
+    --color-destructive-foreground: #FFFFFF;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --color-primary: #3B82F6;
+    --color-primary-foreground: #FFFFFF;
+
+    --color-secondary: #8B5CF6;
+    --color-secondary-foreground: #FFFFFF;
+
+    --color-accent: #FBBF24;
+    --color-accent-foreground: #111827;
+
+    --color-background: #0F172A;
+    --color-foreground: #F1F5F9;
+
+    --color-card: #1E293B;
+    --color-card-foreground: #F1F5F9;
+
+    --color-popover: #1E293B;
+    --color-popover-foreground: #F1F5F9;
+
+    --color-muted: #334155;
+    --color-muted-foreground: #94A3B8;
+
+    --color-border: #334155;
+    --color-input: #334155;
+    --color-ring: #3B82F6;
+
+    --color-success: #34D399;
+    --color-success-foreground: #111827;
+
+    --color-warning: #FBBF24;
+    --color-warning-foreground: #111827;
+
+    --color-error: #F87171;
+    --color-error-foreground: #FFFFFF;
+
+    --color-destructive: #F87171;
+    --color-destructive-foreground: #FFFFFF;
+  }
+}
+
+/* Base styles using Tailwind utilities that actually exist */
+@layer base {
+  * {
+    @apply border-gray-200;
+  }
+
+  body {
+    @apply bg-white text-gray-900;
+    font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+  }
+}
+
+/* Custom utilities */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .border-border {
+    border-color: var(--color-border, #E5E7EB);
+  }
+}

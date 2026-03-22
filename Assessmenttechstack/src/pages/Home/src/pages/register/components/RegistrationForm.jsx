@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Input from '../../../components/ui/Input';
-import Button from '../../../components/ui/Button';
-import { Checkbox } from '../../../components/ui/Checkbox';
+import Input from '../../../components/Input';
+import Button from '../../../components/Button';
+import { Checkbox } from '../../../components/Checkbox';
 import Icon from '../../../components/AppIcon';
 
 const RegistrationForm = () => {

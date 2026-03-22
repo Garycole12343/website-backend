@@ -1,4 +1,6 @@
-You are right, the previous file contained the data structure but not a visual diagram. I cannot create an image file directly, but I can generate a visual representation using Mermaid, a text-based diagramming tool. You can copy the code below and paste it into a Mermaid-compatible viewer (like the one in the response of this chat) to see the diagram.
+# Entity Relationship Diagram (ERD) - SkillSphere
+
+This diagram models the MongoDB document structure and relationships within the SkillSphere platform.
 
 ```mermaid
 erDiagram
@@ -19,6 +21,8 @@ erDiagram
         ObjectId _id PK
         String title
         String category
+        String description
+        String link
         Integer likes
         DateTime createdAt
         DateTime updatedAt
@@ -42,14 +46,6 @@ erDiagram
         DateTime createdAt
     }
 
-    user_embeddings {
-        ObjectId _id PK
-        String email UK
-        Float[] embedding
-        String profile_text
-        DateTime updated_at
-    }
-
     reviews {
         ObjectId _id PK
         String userEmail
@@ -59,30 +55,17 @@ erDiagram
         DateTime createdAt
     }
 
-    skills_pages {
-        ObjectId _id PK
-    }
-
-    skills_embeddings {
-        ObjectId _id PK
-        ObjectId page_id FK
-    }
-
     users ||--o{ resources : "creates"
     users ||--o{ conversations : "participates in"
     users ||--o{ contacts : "owns"
-    users ||--|| user_embeddings : "has one"
     users ||--o{ reviews : "writes"
     users ||--o{ reviews : "receives"
-    skills_pages ||--|| skills_embeddings : "has one"
 ```
 
-### How to Use This:
+### Collection Summaries:
 
-1.  **Copy the Code**: Select and copy the entire `erDiagram` code block above.
-2.  **Use a Mermaid Viewer**:
-    *   **Online Editors**: Paste the code into a site like the [Mermaid Live Editor](https://mermaid.live).
-    *   **IDE Extensions**: If you use VS Code, you can install extensions like "Markdown Preview Mermaid Support".
-    *   **GitHub/GitLab**: They render Mermaid diagrams directly in Markdown files.
-
-This will give you a visual representation of your database schema. I will update the `erd_diagram.md` file with this content.
+1.  users: Stores core account details and hashed passwords. The `profile` object contains nested bio and image path data.
+2.  resources: Community-shared links and tutorials, categorized for easy discovery.
+3.  conversations: Manages real-time message history between users with embedded message arrays for high read performance.
+4.  contacts: User-specific address book for messaging.
+5.  reviews: Dynamic feedback and ratings provided by users for one another.

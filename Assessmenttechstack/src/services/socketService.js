@@ -7,7 +7,7 @@ class SocketService {
     this.listeners = new Map();
     this.userEmail = null;
     this.connected = false;
-    this.backendUrl = "http://localhost:5000";
+    this.backendUrl = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
     console.log("🔌 SocketService (Socket.IO) initialized");
   }
 

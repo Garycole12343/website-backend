@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, useContext, useRef, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationContext";
 import { socketService } from "../services/socketService";
@@ -13,13 +13,15 @@ import {
   sendMessage,
   addIncomingMessage,
   markConversationRead,
+  deleteMessage,
+  deleteConversation,
 } from "../store/slices/messagesSlice";
 
 function Messages() {
   const dispatch = useDispatch();
   const location = useLocation();
   const { userEmail, isAuthenticated } = useContext(AuthContext);
-  const { markAsRead } = useNotifications();
+  const { markAsRead, notifications } = useNotifications();
 
   const { conversations, status, error } = useSelector((state) => state.messages);
 
@@ -30,7 +32,22 @@ function Messages() {
 
   const currentUser = (userEmail || "").toLowerCase().trim();
 
-  // Mark selected conversation as read
+  // Handle delete conversation
+  const handleDeleteConversation = async (conversationId) => {
+    if (!window.confirm("Delete this entire conversation? This cannot be undone.")) return;
+    
+    try {
+      await dispatch(deleteConversation({ conversationId })).unwrap();
+      if (selectedConversationId === conversationId) {
+        setSelectedConversationId(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete conversation:", err);
+      alert("Failed to delete conversation");
+    }
+  };
+
+  // Mark selected conversation as read and CLEAR corresponding notifications
   useEffect(() => {
     if (selectedConversationId && currentUser) {
       const conv = conversations.find(c => c.id === selectedConversationId);
@@ -41,10 +58,32 @@ function Messages() {
         // Only mark as read if there's a new message since last read
         if (lastMsg && (!lastReadTime || new Date(lastMsg.timestamp) > new Date(lastReadTime))) {
            dispatch(markConversationRead({ conversationId: selectedConversationId, email: currentUser }));
+           
+           // Also clear any unread notifications for this conversation
+           notifications.forEach(n => {
+             if (n.conversationId === selectedConversationId && !n.read) {
+               markAsRead(n.id);
+             }
+           });
         }
       }
     }
-  }, [selectedConversationId, conversations, currentUser, dispatch]);
+  }, [selectedConversationId, conversations, currentUser, dispatch, notifications, markAsRead]);
+
+  // Handle delete message
+  const handleDeleteMessage = async (messageId) => {
+    if (!selectedConversationId || !window.confirm("Delete this message?")) return;
+    
+    try {
+      await dispatch(deleteMessage({ 
+        conversationId: selectedConversationId, 
+        messageId 
+      })).unwrap();
+    } catch (err) {
+      console.error("Failed to delete message:", err);
+      alert("Failed to delete message");
+    }
+  };
 
   // Fetch username for an email and cache it (keyed by normalized email)
   const getUserName = async (email) => {
@@ -210,25 +249,25 @@ function Messages() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-50 p-4">
+      <div className="min-h-screen bg-background p-4">
         <h1 className="text-3xl mb-4">Messages</h1>
-        <p className="text-gray-600">Please log in to view your messages.</p>
+        <p className="text-muted-foreground">Please log in to view your messages.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4">
+    <div className="min-h-screen bg-background p-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Messages</h1>
-        <div className="text-sm text-gray-500">{error ? error : ""}</div>
+        <h1 className="text-3xl font-bold text-foreground">Messages</h1>
+        <div className="text-sm text-muted-foreground">{error ? error : ""}</div>
       </div>
 
       {status === "loading" && (
-        <div className="mb-6 p-4 rounded-lg bg-white border border-gray-200 shadow-sm">
+        <div className="mb-6 p-4 rounded-lg bg-card border border-border shadow-sm">
           <div className="flex items-center gap-3">
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
-            <span className="text-gray-600">Loading conversations…</span>
+            <span className="text-muted-foreground">Loading conversations…</span>
           </div>
         </div>
       )}
@@ -236,10 +275,10 @@ function Messages() {
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Conversations Sidebar */}
         <div className="lg:w-1/3">
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="p-4 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-800">Conversations</h2>
-              <p className="text-sm text-gray-500 mt-1">
+          <div className="bg-card rounded-lg shadow overflow-hidden">
+            <div className="p-4 border-b border-border">
+              <h2 className="text-xl font-bold text-foreground">Conversations</h2>
+              <p className="text-sm text-muted-foreground mt-1">
                 {conversations.length} conversation
                 {conversations.length !== 1 ? "s" : ""}
               </p>
@@ -247,7 +286,7 @@ function Messages() {
 
             <div className="max-h-[500px] overflow-y-auto">
               {conversations.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">
+                <div className="p-8 text-center text-muted-foreground">
                   <svg
                     className="w-12 h-12 mx-auto text-gray-300 mb-3"
                     fill="none"
@@ -288,17 +327,17 @@ function Messages() {
                       <li
                         key={conv.id}
                         onClick={() => setSelectedConversationId(conv.id)}
-                        className={`cursor-pointer p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors relative ${
+                        className={`cursor-pointer p-4 border-b border-border hover:bg-background transition-colors relative ${
                           isSelected ? "bg-green-50 border-l-4 border-l-green-500" : ""
-                        } ${isUnread ? "bg-blue-50/30" : ""}`}
+                        } ${isUnread ? "bg-background/30" : ""}`}
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <div className={`font-medium ${isUnread ? "text-blue-900 font-bold" : "text-gray-900"}`}>
+                            <div className={`font-medium ${isUnread ? "text-blue-900 font-bold" : "text-foreground"}`}>
                               {displayName}
                             </div>
                             {lastMessage && (
-                              <div className={`text-sm mt-1 truncate ${isUnread ? "text-blue-800 font-semibold" : "text-gray-600"}`}>
+                              <div className={`text-sm mt-1 truncate ${isUnread ? "text-blue-800 font-semibold" : "text-muted-foreground"}`}>
                                 {String(lastMessage.from || "").toLowerCase().trim() ===
                                 currentUser
                                   ? "You: "
@@ -314,7 +353,7 @@ function Messages() {
                           )}
                         </div>
                         {lastMessage && (
-                          <div className="text-xs text-gray-400 mt-2">
+                          <div className="text-xs text-muted-foreground mt-2">
                             {new Date(lastMessage.timestamp).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
@@ -335,32 +374,44 @@ function Messages() {
         {/* Messages Area */}
         <div className="lg:w-2/3">
           {selectedConversation ? (
-            <div className="bg-white rounded-lg shadow h-full flex flex-col">
+            <div className="bg-card rounded-lg shadow h-full flex flex-col">
               {/* Conversation Header */}
-              <div className="p-4 border-b border-gray-200">
+              <div className="p-4 border-b border-border">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-bold text-gray-800">
-                      Conversation with {otherDisplayName}
+                    <h2 className="text-xl font-bold text-foreground">
+                      Conversation with <Link to={`/profile/${encodeURIComponent(otherParticipantNormalized)}`} className="text-blue-600 hover:underline">{otherDisplayName}</Link>
                     </h2>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        socketService.isConnected() ? "bg-green-500" : "bg-gray-400"
-                      }`}
-                    ></div>
-                    <span className="text-xs text-gray-500">
-                      {socketService.isConnected() ? "Connected" : "Disconnected"}
-                    </span>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => handleDeleteConversation(selectedConversation.id)}
+                      className="text-red-500 hover:text-red-700 transition-colors flex items-center gap-1 text-sm font-medium"
+                      title="Delete entire conversation"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span className="hidden sm:inline">Delete Conversation</span>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-3 h-3 rounded-full ${
+                          socketService.isConnected() ? "bg-green-500" : "bg-gray-400"
+                        }`}
+                      ></div>
+                      <span className="text-xs text-muted-foreground">
+                        {socketService.isConnected() ? "Connected" : "Disconnected"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Messages Container */}
-              <div className="flex-1 p-4 overflow-y-auto max-h-[500px] bg-gray-50">
+              <div className="flex-1 p-4 overflow-y-auto max-h-[500px] bg-background">
                 {(selectedConversation.messages || []).length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
+                  <div className="text-center py-12 text-muted-foreground">
                     <svg
                       className="w-16 h-16 mx-auto text-gray-300 mb-4"
                       fill="none"
@@ -398,15 +449,28 @@ function Messages() {
                         >
                           <div className={`max-w-[70%] ${isMe ? "order-2" : "order-1"}`}>
                             <div
-                              className={`rounded-lg p-3 ${
-                                isMe ? "bg-green-100" : "bg-white border border-gray-200"
+                              className={`rounded-lg p-3 relative group ${
+                                isMe ? "bg-green-100" : "bg-card border border-border"
                               }`}
                             >
-                              <div className="font-medium text-sm text-gray-700 mb-1">
-                                {senderName}
+                              <div className="flex justify-between items-start gap-4 mb-1">
+                                <div className="font-medium text-sm text-muted-foreground">
+                                  {senderName}
+                                </div>
+                                {isMe && (
+                                  <button
+                                    onClick={() => handleDeleteMessage(msg.id)}
+                                    className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity p-0.5"
+                                    title="Delete message"
+                                  >
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                )}
                               </div>
-                              <p className="text-gray-800">{msg.text}</p>
-                              <div className="text-xs text-gray-500 mt-2 text-right">
+                              <p className="text-muted-foreground break-words">{msg.text}</p>
+                              <div className="text-xs text-muted-foreground mt-2 text-right">
                                 {timestamp.toLocaleTimeString("en-US", {
                                   hour: "2-digit",
                                   minute: "2-digit",
@@ -424,7 +488,7 @@ function Messages() {
               </div>
 
               {/* Message Input */}
-              <div className="p-4 border-t border-gray-200">
+              <div className="p-4 border-t border-border">
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -432,7 +496,7 @@ function Messages() {
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                     placeholder="Type your message here..."
-                    className="flex-1 rounded-lg border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="flex-1 rounded-lg border border-border px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                   <button
                     onClick={handleSendMessage}
@@ -440,17 +504,17 @@ function Messages() {
                     className={`px-6 py-3 rounded-lg font-medium transition-colors ${
                       newMessage.trim()
                         ? "bg-green-600 hover:bg-green-700 text-white"
-                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : "bg-gray-300 text-muted-foreground cursor-not-allowed"
                     }`}
                   >
                     Send
                   </button>
                 </div>
-                <div className="text-xs text-gray-500 mt-2">Press Enter to send</div>
+                <div className="text-xs text-muted-foreground mt-2">Press Enter to send</div>
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow p-12 text-center h-full flex flex-col justify-center">
+            <div className="bg-card rounded-lg shadow p-12 text-center h-full flex flex-col justify-center">
               <svg
                 className="w-24 h-24 mx-auto text-gray-300 mb-6"
                 fill="none"
@@ -464,10 +528,10 @@ function Messages() {
                   d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
                 />
               </svg>
-              <h3 className="text-xl font-medium text-gray-700 mb-2">
+              <h3 className="text-xl font-medium text-foreground mb-2">
                 Select a Conversation
               </h3>
-              <p className="text-gray-500 max-w-md mx-auto">
+              <p className="text-muted-foreground max-w-md mx-auto">
                 Choose a conversation to view messages. You can start a conversation
                 from any board by clicking "Contact" on a skill that has been added.
               </p>

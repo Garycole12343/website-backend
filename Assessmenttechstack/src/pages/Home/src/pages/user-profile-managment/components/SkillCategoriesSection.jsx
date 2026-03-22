@@ -1,6 +1,6 @@
 import React from 'react';
 import Icon from '../../../components/AppIcon';
-import { Checkbox, CheckboxGroup } from '../../../components/ui/Checkbox';
+import { Checkbox, CheckboxGroup } from '../../../components/Checkbox';
 
 const SkillCategoriesSection = ({ 
   isEditMode, 

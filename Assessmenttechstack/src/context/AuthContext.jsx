@@ -30,11 +30,18 @@ export const AuthProvider = ({ children }) => {
   const login = (userObj) => {
     // Expect userObj to contain .email
     localStorage.setItem("user", JSON.stringify(userObj));
+    localStorage.setItem("userEmail", userObj.email);
     setUser(userObj);
+  };
+
+  const updateUser = (updatedUser) => {
+    localStorage.setItem("user", JSON.stringify(updatedUser));
+    setUser(updatedUser);
   };
 
   const logout = () => {
     localStorage.removeItem("user");
+    localStorage.removeItem("userEmail");
     setUser(null);
   };
 
@@ -45,6 +52,7 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated: !!email, // tie auth to having a usable email
       userEmail: email,
       login,
+      updateUser,
       logout,
     };
   }, [user]);

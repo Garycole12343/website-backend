@@ -1,7 +1,7 @@
 import React from 'react';
 import Icon from '../../../components/AppIcon';
-import Select from '../../../components/ui/Select';
-import Button from '../../../components/ui/Button';
+import Select from '../../../components/Select';
+import Button from '../../../components/Button';
 
 const FilterPanel = ({ 
   filters, 

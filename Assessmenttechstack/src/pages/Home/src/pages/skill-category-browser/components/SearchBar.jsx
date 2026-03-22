@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Icon from '../../../components/AppIcon';
-import Input from '../../../components/ui/Input';
+import Input from '../../../components/Input';
 
 const SearchBar = ({ value, onChange, suggestions, onSuggestionClick }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -56,7 +56,7 @@ const SearchBar = ({ value, onChange, suggestions, onSuggestionClick }) => {
         )}
       </div>
       {showSuggestions && suggestions?.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-lg shadow-elevated z-50 max-h-80 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-lg shadow-elevated z-40 max-h-80 overflow-y-auto">
           <div className="p-2">
             {suggestions?.map((suggestion, index) => (
               <button

@@ -4,8 +4,6 @@ import { store } from "./store";
 import App from "./App";
 import "./css/tailwind.css";
 
-
-
 const container = document.getElementById("root");
 const root = ReactDOM.createRoot(container);
 root.render(

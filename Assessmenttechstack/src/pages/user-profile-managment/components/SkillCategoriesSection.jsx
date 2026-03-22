@@ -1,9 +1,8 @@
 import React from 'react';
 import Icon from '../../../components/AppIcon';
-import { Checkbox, CheckboxGroup } from '../../../components/ui/Checkbox';
+import { Checkbox, CheckboxGroup } from '../../../components/Checkbox';
 
 const SkillCategoriesSection = ({ 
-  isEditMode, 
   selectedCategories, 
   onCategoryChange 
 }) => {
@@ -26,39 +25,23 @@ const SkillCategoriesSection = ({
           Skill Categories
         </h2>
       </div>
-      {isEditMode ? (
-        <CheckboxGroup label="Select your areas of interest">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {skillCategories?.map((category) => (
-              <Checkbox
-                key={category?.id}
-                label={
-                  <div className="flex items-center gap-2">
-                    <Icon name={category?.icon} size={18} className={category?.color} />
-                    <span>{category?.name}</span>
-                  </div>
-                }
-                checked={selectedCategories?.includes(category?.id)}
-                onChange={(e) => onCategoryChange(category?.id, e?.target?.checked)}
-              />
-            ))}
-          </div>
-        </CheckboxGroup>
-      ) : (
+      <CheckboxGroup label="Select your areas of interest">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {skillCategories?.filter(cat => selectedCategories?.includes(cat?.id))?.map((category) => (
-              <div
-                key={category?.id}
-                className="flex items-center gap-3 p-4 bg-muted rounded-lg"
-              >
-                <div className="w-10 h-10 bg-background rounded-lg flex items-center justify-center">
-                  <Icon name={category?.icon} size={20} className={category?.color} />
+          {skillCategories?.map((category) => (
+            <Checkbox
+              key={category?.id}
+              label={
+                <div className="flex items-center gap-2">
+                  <Icon name={category?.icon} size={18} className={category?.color} />
+                  <span>{category?.name}</span>
                 </div>
-                <span className="font-medium text-foreground">{category?.name}</span>
-              </div>
-            ))}
+              }
+              checked={selectedCategories?.includes(category?.id)}
+              onChange={(e) => onCategoryChange(category?.id, e?.target?.checked)}
+            />
+          ))}
         </div>
-      )}
+      </CheckboxGroup>
     </div>
   );
 };

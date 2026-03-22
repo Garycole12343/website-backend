@@ -62,7 +62,7 @@ const Login = () => {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        setErrors({ submit: data.message || "Login failed" });
+        setErrors({ submit: data.error || data.message || "Login failed" });
         return;
       }
 

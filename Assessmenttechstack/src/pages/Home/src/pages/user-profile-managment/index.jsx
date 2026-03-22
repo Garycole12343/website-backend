@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/navigation/Header';
-import Button from '../../components/ui/Button';
+import Button from '../../components/Button';
 import Icon from '../../components/AppIcon';
 import ProfileHeader from './components/ProfileHeader';
 import PersonalInfoForm from './components/PersonalInfoForm';

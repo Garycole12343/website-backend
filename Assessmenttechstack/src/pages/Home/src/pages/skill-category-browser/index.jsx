@@ -6,7 +6,7 @@ import FilterPanel from './components/FilterPanel';
 import SearchBar from './components/SearchBar';
 import ResourceGrid from './components/ResourceGrid';
 
-import Button from '../../components/ui/Button';
+import Button from '../../components/Button';
 
 const SkillCategoryBrowser = () => {
   const [searchParams] = useSearchParams();

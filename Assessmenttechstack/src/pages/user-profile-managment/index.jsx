@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Header from '../../components/navigation/Header';
-import Button from '../../components/ui/Button';
+import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { AuthContext } from '../../context/AuthContext';
+import Button from '../../components/Button';
 import Icon from '../../components/AppIcon';
 import ProfileHeader from './components/ProfileHeader';
 import PersonalInfoForm from './components/PersonalInfoForm';
@@ -9,71 +9,79 @@ import SkillCategoriesSection from './components/SkillCategoriesSection';
 import SkillShowcase from './components/SkillShowcase';
 import PrivacySettings from './components/PrivacySettings';
 import ResourcesSummary from './components/ResourcesSummary';
+import DangerZone from './components/DangerZone';
+import SecuritySettings from './components/SecuritySettings';
+import AccessibilitySettings from './components/AccessibilitySettings';
+import { useTheme } from '../../context/ThemeContext';
 
 const UserProfileManagement = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, logout, user, updateUser } = useContext(AuthContext);
+  const { theme: globalTheme, setTheme: setGlobalTheme } = useTheme();
   const [isEditMode, setIsEditMode] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
+  const [selectedTheme, setSelectedTheme] = useState(
+    user?.profile?.accessibility?.theme || globalTheme
+  );
+
   const [profileData] = useState({
-    name: "Sarah Mitchell",
-    email: "sarah.mitchell@example.com",
-    phone: "+1 (555) 234-5678",
-    location: "San Francisco, CA, USA",
-    bio: "Passionate educator and creative professional with 8+ years of experience in digital design and web development. I love sharing knowledge and helping others grow their skills through hands-on learning and collaborative projects.",
-    website: "https://sarahmitchell.design",
-    linkedin: "https://linkedin.com/in/sarahmitchell",
-    profileImage: "https://img.rocket.new/generatedImages/rocket_gen_img_159d2c8f8-1763294679735.png",
-    profileImageAlt: "Professional headshot of woman with long brown hair wearing white blouse smiling warmly at camera",
-    joinedDate: "March 2023",
-    resourceCount: 24
+    name: user?.profile?.name || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "User",
+    email: user?.email || "",
+    phone: user?.profile?.phone || "",
+    location: user?.profile?.location || "",
+    bio: user?.profile?.bio || "No bio yet.",
+    website: user?.profile?.website || "",
+    linkedin: user?.profile?.linkedin || "",
+    profileImage: user?.profile?.profileImage || "",
+    profileImageAlt: "User profile image",
+    joinedDate: user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Recently",
+    resourceCount: user?.resourceCount || 0
   });
 
   const [formData, setFormData] = useState({
-    name: profileData?.name,
-    email: profileData?.email,
-    phone: profileData?.phone,
-    location: profileData?.location,
-    bio: profileData?.bio,
-    website: profileData?.website,
-    linkedin: profileData?.linkedin
+    name: user?.profile?.name || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "User",
+    email: user?.email || "",
+    phone: user?.profile?.phone || "",
+    location: user?.profile?.location || "",
+    bio: user?.profile?.bio || "No bio yet.",
+    website: user?.profile?.website || "",
+    linkedin: user?.profile?.linkedin || ""
   });
 
   const [errors, setErrors] = useState({});
 
-  const [selectedCategories, setSelectedCategories] = useState([
-  'art', 'coding', 'music']
+  const [selectedCategories, setSelectedCategories] = useState(
+    user?.interests || ['art', 'coding', 'music']
   );
 
-  const [skills, setSkills] = useState([
-  {
-    name: "UI/UX Design",
-    level: "expert",
-    portfolioLink: "https://sarahmitchell.design/portfolio",
-    description: "10+ years of experience creating user-centered designs for web and mobile applications. Specialized in design systems, prototyping, and user research methodologies."
-  },
-  {
-    name: "React Development",
-    level: "advanced",
-    portfolioLink: "https://github.com/sarahmitchell",
-    description: "Building modern web applications with React, Redux, and TypeScript. Experienced in component architecture, state management, and performance optimization."
-  },
-  {
-    name: "Digital Illustration",
-    level: "intermediate",
-    portfolioLink: "https://behance.net/sarahmitchell",
-    description: "Creating digital artwork and illustrations using Procreate and Adobe Creative Suite. Focus on character design and editorial illustrations."
-  }]
+  const [skills, setSkills] = useState(
+    user?.profile?.skills_detail || [
+      {
+        name: "UI/UX Design",
+        level: "expert",
+        portfolioLink: "https://sarahmitchell.design/portfolio",
+        description: "10+ years of experience creating user-centered designs for web and mobile applications."
+      },
+      {
+        name: "React Development",
+        level: "advanced",
+        portfolioLink: "https://github.com/sarahmitchell",
+        description: "Building modern web applications with React, Redux, and TypeScript."
+      }
+    ]
   );
 
-  const [privacySettings, setPrivacySettings] = useState({
-    profileVisibility: true,
-    showEmail: false,
-    showPhone: false,
-    allowMessages: true,
-    emailNotifications: true
-  });
+  const [privacySettings, setPrivacySettings] = useState(
+    user?.profile?.privacySettings || {
+      profileVisibility: true,
+      showEmail: false,
+      showPhone: false,
+      allowMessages: true,
+      emailNotifications: true
+    }
+  );
 
   const recentResources = [
   {
@@ -85,35 +93,7 @@ const UserProfileManagement = () => {
     comments: 45,
     rating: 4.8,
     postedDate: "2 days ago"
-  },
-  {
-    id: 2,
-    title: "Mastering Figma: Design System Workshop",
-    categoryIcon: "Palette",
-    categoryColor: "bg-pink-100 text-pink-600",
-    views: 892,
-    comments: 32,
-    rating: 4.9,
-    postedDate: "1 week ago"
-  },
-  {
-    id: 3,
-    title: "Music Production Basics with Ableton Live",
-    categoryIcon: "Music",
-    categoryColor: "bg-purple-100 text-purple-600",
-    views: 567,
-    comments: 18,
-    rating: 4.7,
-    postedDate: "2 weeks ago"
   }];
-
-
-  useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      navigate('/login');
-    }
-  }, [navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e?.target;
@@ -147,14 +127,44 @@ const UserProfileManagement = () => {
     }
   };
 
-  const handleCategoryChange = (categoryId, checked) => {
-    setSelectedCategories((prev) => {
-      if (checked) {
-        return [...prev, categoryId];
-      } else {
-        return prev?.filter((id) => id !== categoryId);
+  const persistProfilePart = async (updatedPart) => {
+    if (!user) return;
+    try {
+      const response = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user?.email,
+          profile: {
+            ...user?.profile,
+            ...updatedPart
+          }
+        })
+      });
+
+      if (response.ok) {
+        updateUser({
+          ...user,
+          profile: {
+            ...user?.profile,
+            ...updatedPart
+          }
+        });
+        return true;
       }
-    });
+    } catch (err) {
+      console.error("Failed to persist profile update:", err);
+    }
+    return false;
+  };
+
+  const handleCategoryChange = (categoryId, checked) => {
+    const newCategories = checked
+      ? [...selectedCategories, categoryId]
+      : selectedCategories?.filter((id) => id !== categoryId);
+    
+    setSelectedCategories(newCategories);
+    persistProfilePart({ interests: newCategories });
   };
 
   const handleSkillAdd = () => {
@@ -167,7 +177,8 @@ const UserProfileManagement = () => {
   };
 
   const handleSkillRemove = (index) => {
-    setSkills((prev) => prev?.filter((_, i) => i !== index));
+    const newSkills = skills?.filter((_, i) => i !== index);
+    setSkills(newSkills);
   };
 
   const handleSkillChange = (index, field, value) => {
@@ -176,74 +187,131 @@ const UserProfileManagement = () => {
     ));
   };
 
+  const handleSkillSave = async () => {
+    await persistProfilePart({ skills_detail: skills });
+  };
+
   const handlePrivacyChange = (settingId) => {
-    setPrivacySettings((prev) => ({
-      ...prev,
-      [settingId]: !prev?.[settingId]
-    }));
+    const newPrivacySettings = {
+      ...privacySettings,
+      [settingId]: !privacySettings?.[settingId]
+    };
+    setPrivacySettings(newPrivacySettings);
+    persistProfilePart({ privacySettings: newPrivacySettings });
+  };
+
+  const handleThemeChange = async (newTheme) => {
+    setSelectedTheme(newTheme);
+    setGlobalTheme(newTheme);
+    
+    // Persist immediately to profile if user is logged in
+    if (user) {
+      try {
+        await fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: user?.email,
+            profile: {
+              ...user?.profile,
+              accessibility: {
+                ...user?.profile?.accessibility,
+                theme: newTheme
+              }
+            }
+          })
+        });
+        
+        // Update local context as well
+        updateUser({
+          ...user,
+          profile: {
+            ...user?.profile,
+            accessibility: {
+              ...user?.profile?.accessibility,
+              theme: newTheme
+            }
+          }
+        });
+      } catch (err) {
+        console.error("Failed to persist theme choice:", err);
+      }
+    }
   };
 
   const validateForm = () => {
     const newErrors = {};
-
-    if (!formData?.name?.trim()) {
-      newErrors.name = 'Name is required';
-    }
-
-    if (!formData?.email?.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/?.test(formData?.email)) {
-      newErrors.email = 'Invalid email format';
-    }
-
-    if (!formData?.location?.trim()) {
-      newErrors.location = 'Location is required';
-    }
-
-    if (!formData?.bio?.trim()) {
-      newErrors.bio = 'Bio is required';
-    } else if (formData?.bio?.trim()?.length < 50) {
-      newErrors.bio = 'Bio must be at least 50 characters';
-    }
-
-    if (formData?.website && !/^https?:\/\/.+/?.test(formData?.website)) {
-      newErrors.website = 'Invalid URL format';
-    }
-
-    if (formData?.linkedin && !/^https?:\/\/.+/?.test(formData?.linkedin)) {
-      newErrors.linkedin = 'Invalid URL format';
-    }
-
-    if (selectedCategories?.length === 0) {
-      newErrors.categories = 'Please select at least one skill category';
-    }
-
+    if (!formData?.name?.trim()) newErrors.name = 'Name is required';
+    if (!formData?.email?.trim()) newErrors.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/?.test(formData?.email)) newErrors.email = 'Invalid email format';
+    
     setErrors(newErrors);
     return Object.keys(newErrors)?.length === 0;
   };
 
-  const handleSave = () => {
-    if (validateForm()) {
-      console.log('Saving profile:', {
-        formData,
-        selectedCategories,
-        skills,
-        privacySettings,
-        imagePreview
+const handleSave = async () => {
+  if (validateForm()) {
+    try {
+      const response = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user?.email,
+          profile: {
+            ...user?.profile,
+            name: formData.name,
+            phone: formData.phone,
+            location: formData.location,
+            bio: formData.bio,
+            website: formData.website,
+            linkedin: formData.linkedin,
+            profileImage: imagePreview || user?.profile?.profileImage,
+            interests: selectedCategories,
+            skills_detail: skills,
+            privacySettings: privacySettings,
+            accessibility: {
+              theme: selectedTheme
+            }
+          }
+        })
       });
 
-      setIsEditMode(false);
-      setShowSuccessMessage(true);
-
-      setTimeout(() => {
-        setShowSuccessMessage(false);
-      }, 3000);
-
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (response.ok) {
+        const updatedProfileData = {
+          ...user,
+          interests: selectedCategories,
+          profile: {
+            ...user?.profile,
+            name: formData.name,
+            phone: formData.phone,
+            location: formData.location,
+            bio: formData.bio,
+            website: formData.website,
+            linkedin: formData.linkedin,
+            profileImage: imagePreview || user?.profile?.profileImage,
+            interests: selectedCategories,
+            skills_detail: skills,
+            privacySettings: privacySettings,
+            accessibility: {
+              theme: selectedTheme
+            }
+          }
+        };
+        updateUser(updatedProfileData);
+        setIsEditMode(false);
+        setShowSuccessMessage(true);
+        setTimeout(() => setShowSuccessMessage(false), 3000);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        const data = await response.json();
+        setErrors({ submit: data.message || "Failed to update profile" });
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      setErrors({ submit: "Could not connect to the server." });
     }
-  };
+  }
+};
 
   const handleCancel = () => {
     setFormData({
@@ -260,9 +328,28 @@ const UserProfileManagement = () => {
     setIsEditMode(false);
   };
 
+  const handleDeleteAccount = async () => {
+    if (!window.confirm("Are you sure you want to permanently delete your account? This cannot be undone.")) return;
+    try {
+      const response = await fetch('/api/profile', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (response.ok) {
+        logout();
+        navigate('/register');
+      } else {
+        const data = await response.json();
+        setErrors({ delete: data.message || 'Failed to delete account' });
+      }
+    } catch (err) {
+      console.error('Delete account error:', err);
+      setErrors({ delete: 'Could not connect to server' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {showSuccessMessage &&
         <div className="mb-6 p-4 bg-success/10 border border-success/20 rounded-lg flex items-center gap-3 animate-fade-in">
@@ -274,63 +361,36 @@ const UserProfileManagement = () => {
           </div>
         }
 
+        {errors.delete &&
+          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3">
+            <Icon name="AlertCircle" size={24} color="var(--color-destructive)" />
+            <p className="text-destructive font-medium">{errors.delete}</p>
+          </div>
+        }
+
         <div className="flex items-center justify-between mb-8">
-          <div>
+          <div className="flex flex-col gap-2">
+            <Link to="/profile" className="text-sm text-primary hover:underline flex items-center gap-1 mb-2">
+              <Icon name="ArrowLeft" size={16} />
+              Back to Profile
+            </Link>
             <h1 className="font-heading text-3xl font-bold text-foreground mb-2">
-              Profile Management
+              Settings
             </h1>
             <p className="text-muted-foreground">
-              Manage your personal information, skills, and privacy settings
+              Manage your personal information, skills, security, and privacy settings
             </p>
           </div>
           <div className="flex items-center gap-3">
             {isEditMode ?
             <>
-                <Button
-                variant="outline"
-                onClick={handleCancel}
-                iconName="X"
-                iconPosition="left">
-
-                  Cancel
-                </Button>
-                <Button
-                variant="default"
-                onClick={handleSave}
-                iconName="Save"
-                iconPosition="left">
-
-                  Save Changes
-                </Button>
+                <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+                <Button variant="default" onClick={handleSave}>Save Changes</Button>
               </> :
-
-            <Button
-              variant="default"
-              onClick={() => setIsEditMode(true)}
-              iconName="Edit"
-              iconPosition="left">
-
-                Edit Profile
-              </Button>
+            <Button variant="default" onClick={() => setIsEditMode(true)}>Edit Profile</Button>
             }
           </div>
         </div>
-
-        {Object.keys(errors)?.length > 0 &&
-        <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-            <div className="flex items-start gap-3">
-              <Icon name="AlertCircle" size={24} color="var(--color-destructive)" />
-              <div className="flex-1">
-                <h3 className="font-semibold text-destructive mb-2">Please fix the following errors:</h3>
-                <ul className="list-disc list-inside space-y-1 text-sm text-destructive/80">
-                  {Object.values(errors)?.map((error, index) =>
-                <li key={index}>{error}</li>
-                )}
-                </ul>
-              </div>
-            </div>
-          </div>
-        }
 
         <ProfileHeader
           isEditMode={isEditMode}
@@ -338,62 +398,47 @@ const UserProfileManagement = () => {
           onImageChange={handleImageChange}
           imagePreview={imagePreview} />
 
-
         <PersonalInfoForm
           isEditMode={isEditMode}
           formData={formData}
           errors={errors}
           onChange={handleInputChange} />
 
-
         <SkillCategoriesSection
-          isEditMode={isEditMode}
           selectedCategories={selectedCategories}
           onCategoryChange={handleCategoryChange} />
 
-
         <SkillShowcase
-          isEditMode={isEditMode}
           skills={skills}
           onSkillAdd={handleSkillAdd}
           onSkillRemove={handleSkillRemove}
-          onSkillChange={handleSkillChange} />
+          onSkillChange={handleSkillChange}
+          onSave={handleSkillSave} />
 
+        <SecuritySettings />
 
         <PrivacySettings
-          isEditMode={isEditMode}
           privacySettings={privacySettings}
           onPrivacyChange={handlePrivacyChange} />
-
 
         <ResourcesSummary
           resourceCount={profileData?.resourceCount}
           recentResources={recentResources} />
 
+        <AccessibilitySettings
+          selectedTheme={selectedTheme}
+          onThemeChange={handleThemeChange} />
+
+        <DangerZone onDeleteAccount={handleDeleteAccount} />
 
         {isEditMode &&
         <div className="mt-6 flex items-center justify-end gap-3 p-6 bg-card rounded-xl border border-border">
-            <Button
-            variant="outline"
-            onClick={handleCancel}
-            iconName="X"
-            iconPosition="left">
-
-              Cancel
-            </Button>
-            <Button
-            variant="default"
-            onClick={handleSave}
-            iconName="Save"
-            iconPosition="left">
-
-              Save Changes
-            </Button>
+            <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+            <Button variant="default" onClick={handleSave}>Save Changes</Button>
           </div>
         }
       </main>
     </div>);
-
 };
 
 export default UserProfileManagement;
